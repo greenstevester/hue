@@ -1,4 +1,4 @@
-package hue
+package client
 
 // Error represents an API error
 type Error struct {

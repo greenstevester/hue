@@ -1,4 +1,4 @@
-package hue
+package client
 
 import (
 	"bytes"
