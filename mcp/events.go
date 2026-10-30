@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -65,13 +66,13 @@ func HandleStartEventStream(hueClient *client.Client) server.ToolHandlerFunc {
 		eventManager.streaming = true
 
 		// Start processing events in background
-		go eventManager.processEvents(filterTypes)
+		go eventManager.processEvents(stream, filterTypes)
 
 		result := "Event stream started successfully"
 		if len(filterTypes) > 0 {
 			result += fmt.Sprintf(" with filter: %s", strings.Join(filterTypes, ", "))
 		}
-		
+
 		return mcp.NewToolResultText(result), nil
 	}
 }
@@ -79,12 +80,15 @@ func HandleStartEventStream(hueClient *client.Client) server.ToolHandlerFunc {
 // HandleStopEventStream stops the event stream
 func HandleStopEventStream(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if eventManager == nil || !eventManager.streaming {
+		if eventManager == nil {
 			return mcp.NewToolResultText("Event stream is not running"), nil
 		}
 
 		eventManager.streamingLock.Lock()
 		defer eventManager.streamingLock.Unlock()
+		if !eventManager.streaming {
+			return mcp.NewToolResultText("Event stream is not running"), nil
+		}
 
 		if eventManager.stream != nil {
 			eventManager.stream.Close()
@@ -124,7 +128,7 @@ func HandleGetRecentEvents(hueClient *client.Client) server.ToolHandlerFunc {
 		// Show events in reverse order (newest first)
 		for i := len(eventManager.recentEvents) - 1; i >= 0 && count < limit; i-- {
 			event := eventManager.recentEvents[i]
-			
+
 			// Filter by type if specified
 			if eventType != "" && event.Type != eventType {
 				continue
@@ -132,10 +136,10 @@ func HandleGetRecentEvents(hueClient *client.Client) server.ToolHandlerFunc {
 
 			result.WriteString(fmt.Sprintf("🔔 Event %s at %s\n", event.ID, event.CreationTime))
 			result.WriteString(fmt.Sprintf("   Type: %s\n", event.Type))
-			
+
 			for _, data := range event.Data {
 				result.WriteString(fmt.Sprintf("   • %s (%s)\n", data.Type, data.ID))
-				
+
 				// Show relevant details based on type
 				switch data.Type {
 				case "light":
@@ -185,44 +189,44 @@ func HandleGetRecentEvents(hueClient *client.Client) server.ToolHandlerFunc {
 func HandleGetEventStreamStatus(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var result strings.Builder
-		
+
 		result.WriteString("Event Stream Status:\n")
-		
+
 		if eventManager == nil {
 			result.WriteString("• Status: Not initialized\n")
 		} else {
 			eventManager.streamingLock.Lock()
 			streaming := eventManager.streaming
 			eventManager.streamingLock.Unlock()
-			
+
 			if streaming {
 				result.WriteString("• Status: Running ✅\n")
 			} else {
 				result.WriteString("• Status: Stopped ❌\n")
 			}
-			
+
 			eventManager.eventsMutex.RLock()
 			eventCount := len(eventManager.recentEvents)
 			eventManager.eventsMutex.RUnlock()
-			
+
 			result.WriteString(fmt.Sprintf("• Events buffered: %d\n", eventCount))
 			result.WriteString(fmt.Sprintf("• Max buffer size: %d\n", eventManager.maxEvents))
 		}
-		
+
 		return mcp.NewToolResultText(result.String()), nil
 	}
 }
 
 // processEvents processes incoming events
-func (em *EventManager) processEvents(filterTypes []string) {
+func (em *EventManager) processEvents(stream *client.EventStream, filterTypes []string) {
 	var events <-chan client.Event
-	
+
 	if len(filterTypes) > 0 {
-		events = em.stream.FilterEvents(filterTypes...)
+		events = stream.FilterEvents(filterTypes...)
 	} else {
-		events = em.stream.Events()
+		events = stream.Events()
 	}
-	
+
 	for {
 		select {
 		case event, ok := <-events:
@@ -230,13 +234,13 @@ func (em *EventManager) processEvents(filterTypes []string) {
 				return
 			}
 			em.storeEvent(event)
-			
-		case err, ok := <-em.stream.Errors():
+
+		case err, ok := <-stream.Errors():
 			if !ok {
 				return
 			}
 			// Log error but continue
-			fmt.Printf("Event stream error: %v\n", err)
+			log.Printf("Event stream error: %v", err)
 		}
 	}
 }
@@ -245,9 +249,9 @@ func (em *EventManager) processEvents(filterTypes []string) {
 func (em *EventManager) storeEvent(event client.Event) {
 	em.eventsMutex.Lock()
 	defer em.eventsMutex.Unlock()
-	
+
 	em.recentEvents = append(em.recentEvents, event)
-	
+
 	// Trim buffer if too large
 	if len(em.recentEvents) > em.maxEvents {
 		// Keep the most recent events

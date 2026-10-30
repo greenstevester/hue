@@ -6,17 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Client represents a Philips Hue v2 API client
 type Client struct {
-	bridgeIP   string
-	username   string
-	httpClient *http.Client
-	baseURL    string
+	bridgeIP    string
+	username    string
+	httpClient  *http.Client
+	baseURL     string
+	writeMu     sync.Mutex
+	beforeWrite func(context.Context, string, interface{}) error
 }
+
+// BridgeAddress identifies this client's Bridge without exposing its credential.
+func (c *Client) BridgeAddress() string { return c.bridgeIP }
 
 // NewClient creates a new Hue v2 API client
 func NewClient(bridgeIP, username string, httpClient *http.Client) *Client {
@@ -41,16 +49,16 @@ func (c *Client) GetLights(ctx context.Context) ([]Light, error) {
 		Errors []Error `json:"errors"`
 		Data   []Light `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/light", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -60,20 +68,20 @@ func (c *Client) GetLight(ctx context.Context, id string) (*Light, error) {
 		Errors []Error `json:"errors"`
 		Data   []Light `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, fmt.Sprintf("/resource/light/%s", id), &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("light not found")
 	}
-	
+
 	return &response.Data[0], nil
 }
 
@@ -89,16 +97,16 @@ func (c *Client) GetGroups(ctx context.Context) ([]Group, error) {
 		Errors []Error `json:"errors"`
 		Data   []Group `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/grouped_light", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -108,20 +116,20 @@ func (c *Client) GetGroup(ctx context.Context, id string) (*Group, error) {
 		Errors []Error `json:"errors"`
 		Data   []Group `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, fmt.Sprintf("/resource/grouped_light/%s", id), &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("group not found")
 	}
-	
+
 	return &response.Data[0], nil
 }
 
@@ -137,16 +145,16 @@ func (c *Client) GetScenes(ctx context.Context) ([]Scene, error) {
 		Errors []Error `json:"errors"`
 		Data   []Scene `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/scene", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -169,24 +177,24 @@ func (c *Client) CreateScene(ctx context.Context, scene SceneCreate) (*Scene, er
 			ID string `json:"rid"`
 		} `json:"data"`
 	}
-	
+
 	body, err := c.post(ctx, "/resource/scene", scene)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("no scene ID returned")
 	}
-	
+
 	// Get the created scene
 	return c.GetScene(ctx, response.Data[0].ID)
 }
@@ -197,20 +205,20 @@ func (c *Client) GetScene(ctx context.Context, id string) (*Scene, error) {
 		Errors []Error `json:"errors"`
 		Data   []Scene `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, fmt.Sprintf("/resource/scene/%s", id), &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("scene not found")
 	}
-	
+
 	return &response.Data[0], nil
 }
 
@@ -220,20 +228,20 @@ func (c *Client) GetBridge(ctx context.Context) (*Bridge, error) {
 		Errors []Error  `json:"errors"`
 		Data   []Bridge `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/bridge", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("bridge not found")
 	}
-	
+
 	return &response.Data[0], nil
 }
 
@@ -264,8 +272,17 @@ func (c *Client) delete(ctx context.Context, path string) ([]byte, error) {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, data interface{}) ([]byte, error) {
+	if method != http.MethodGet {
+		c.writeMu.Lock()
+		defer c.writeMu.Unlock()
+		if c.beforeWrite != nil {
+			if err := c.beforeWrite(ctx, path, data); err != nil {
+				return nil, err
+			}
+		}
+	}
 	url := c.baseURL + path
-	
+
 	var body io.Reader
 	if data != nil {
 		jsonData, err := json.Marshal(data)
@@ -274,32 +291,43 @@ func (c *Client) request(ctx context.Context, method, path string, data interfac
 		}
 		body = bytes.NewReader(jsonData)
 	}
-	
+
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.Header.Set("hue-application-key", c.username)
 	if data != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		return nil, &ResponseError{Status: resp.StatusCode, Body: string(respBody), RetryAfter: retryDelay(resp.Header.Get("Retry-After"), time.Now())}
 	}
-	
+	if method != http.MethodGet && len(respBody) > 0 {
+		var result struct {
+			Errors []Error `json:"errors"`
+		}
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("decode Bridge write response: %w", err)
+		}
+		if len(result.Errors) > 0 {
+			return nil, fmt.Errorf("API error: %s", result.Errors[0].Description)
+		}
+	}
+
 	return respBody, nil
 }
 
@@ -328,6 +356,9 @@ func (c *Client) SetLightBrightness(ctx context.Context, id string, brightness f
 
 // SetLightColor sets a light's color from hex string
 func (c *Client) SetLightColor(ctx context.Context, id string, hexColor string) error {
+	if _, err := ParseColor(hexColor, nil); err != nil {
+		return err
+	}
 	x, y := hexToXY(hexColor)
 	return c.UpdateLight(ctx, id, LightUpdate{
 		Color: &Color{XY: XY{X: x, Y: y}},
@@ -339,11 +370,11 @@ func (c *Client) SetLightEffect(ctx context.Context, id string, effect string, d
 	update := LightUpdate{
 		Effects: &Effects{Effect: effect},
 	}
-	
+
 	if duration > 0 {
 		update.Dynamics = &Dynamics{Duration: duration * 1000} // Convert to milliseconds
 	}
-	
+
 	return c.UpdateLight(ctx, id, update)
 }
 
@@ -370,6 +401,9 @@ func (c *Client) SetGroupBrightness(ctx context.Context, id string, brightness f
 
 // SetGroupColor sets a group's color from hex string
 func (c *Client) SetGroupColor(ctx context.Context, id string, hexColor string) error {
+	if _, err := ParseColor(hexColor, nil); err != nil {
+		return err
+	}
 	x, y := hexToXY(hexColor)
 	return c.UpdateGroup(ctx, id, GroupUpdate{
 		Color: &Color{XY: XY{X: x, Y: y}},
@@ -381,11 +415,11 @@ func (c *Client) SetGroupEffect(ctx context.Context, id string, effect string, d
 	update := GroupUpdate{
 		Effects: &Effects{Effect: effect},
 	}
-	
+
 	if duration > 0 {
 		update.Dynamics = &Dynamics{Duration: duration * 1000} // Convert to milliseconds
 	}
-	
+
 	return c.UpdateGroup(ctx, id, update)
 }
 
@@ -402,9 +436,9 @@ func (c *Client) GetAllSupportedEffects(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	effectsMap := make(map[string]bool)
-	
+
 	for _, light := range lights {
 		if light.Effects != nil {
 			for _, effect := range light.Effects.EffectValues {
@@ -412,12 +446,12 @@ func (c *Client) GetAllSupportedEffects(ctx context.Context) ([]string, error) {
 			}
 		}
 	}
-	
+
 	var effects []string
 	for effect := range effectsMap {
 		effects = append(effects, effect)
 	}
-	
+
 	return effects, nil
 }
 
@@ -426,58 +460,83 @@ func (c *Client) GetAllSupportedEffects(ctx context.Context) ([]string, error) {
 func hexToXY(hex string) (float64, float64) {
 	// Remove # if present
 	hex = strings.TrimPrefix(hex, "#")
-	
+
 	// Parse hex values
 	var r, g, b uint8
 	fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
-	
+
 	// Convert to XY using simplified algorithm
 	// This is a basic conversion - a full implementation would use the light's color gamut
 	rf := float64(r) / 255.0
 	gf := float64(g) / 255.0
 	bf := float64(b) / 255.0
-	
+
 	// Apply gamma correction
 	if rf > 0.04045 {
 		rf = pow((rf+0.055)/1.055, 2.4)
 	} else {
 		rf = rf / 12.92
 	}
-	
+
 	if gf > 0.04045 {
 		gf = pow((gf+0.055)/1.055, 2.4)
 	} else {
 		gf = gf / 12.92
 	}
-	
+
 	if bf > 0.04045 {
 		bf = pow((bf+0.055)/1.055, 2.4)
 	} else {
 		bf = bf / 12.92
 	}
-	
+
 	// Convert to XYZ using sRGB color space matrix
 	X := rf*0.4124564 + gf*0.3575761 + bf*0.1804375
 	Y := rf*0.2126729 + gf*0.7151522 + bf*0.0721750
 	Z := rf*0.0193339 + gf*0.1191920 + bf*0.9503041
-	
+
 	// Convert to xy
 	sum := X + Y + Z
 	if sum == 0 {
 		return 0.3127, 0.3290 // Default white
 	}
-	
+
 	x := X / sum
 	y := Y / sum
-	
+
 	return x, y
 }
 
 func pow(base, exp float64) float64 {
-	// Simple power function
-	result := 1.0
-	for i := 0; i < int(exp); i++ {
-		result *= base
+	return math.Pow(base, exp)
+}
+
+// SetWriteGuard installs an optional command coordinator. It also serializes writes.
+func (c *Client) SetWriteGuard(guard func(context.Context, string, interface{}) error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	c.beforeWrite = guard
+}
+
+// Activity reserves lights for a sequence or batch. Empty targets reserve all managed lights.
+type Activity struct {
+	Targets []string
+	Active  bool
+}
+
+// BeginActivity keeps the optional coordinator informed for the entire operation.
+func (c *Client) BeginActivity(ctx context.Context, targets []string) (func(), error) {
+	notify := func(active bool) error {
+		c.writeMu.Lock()
+		defer c.writeMu.Unlock()
+		if c.beforeWrite == nil {
+			return nil
+		}
+		return c.beforeWrite(ctx, "/activity", Activity{Targets: targets, Active: active})
 	}
-	return result
+	if err := notify(true); err != nil {
+		return nil, err
+	}
+	var once sync.Once
+	return func() { once.Do(func() { _ = notify(false) }) }, nil
 }

@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/kungfusheep/hue/client"
 	"github.com/kungfusheep/hue/mcp"
+	"github.com/spf13/cobra"
 )
 
 var (
 	// Global flags
 	jsonOutput bool
 	quiet      bool
-	
+
 	// Shared Hue client
 	hueClient *client.Client
 )
@@ -29,10 +29,10 @@ Control lights, groups, scenes, and effects directly from your terminal.
 Perfect for scripting, testing, or quick light adjustments.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Skip client init for commands that don't need it
-		if cmd.Name() == "help" || cmd.Name() == "discover" {
+		if hueClient == nil || cmd.Name() == "help" || cmd.Name() == "discover" {
 			return
 		}
-		
+
 		// Initialize client and scheduler for all other commands
 		initializeClient()
 	},
@@ -42,7 +42,7 @@ Perfect for scripting, testing, or quick light adjustments.`,
 func Execute(client *client.Client) {
 	// Store client for use in commands
 	hueClient = client
-	
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -56,7 +56,7 @@ func initializeClient() {
 		fmt.Fprintln(os.Stderr, "Error: Hue client not initialized")
 		os.Exit(1)
 	}
-	
+
 	// Initialize scheduler
 	mcp.InitScheduler(hueClient)
 }

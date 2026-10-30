@@ -1,5 +1,7 @@
 package client
 
+import "encoding/json"
+
 // Error represents an API error
 type Error struct {
 	Type        string `json:"type"`
@@ -15,64 +17,66 @@ type ResourceIdentifier struct {
 
 // Light represents a light resource
 type Light struct {
-	ID       string    `json:"id"`
-	IDV1     string    `json:"id_v1"`
-	Type     string    `json:"type"`
-	Owner    ResourceIdentifier `json:"owner"`
-	Metadata Metadata  `json:"metadata"`
-	On       OnState   `json:"on"`
-	Dimming  Dimming   `json:"dimming"`
-	Color    *Color    `json:"color,omitempty"`
-	ColorTemperature *ColorTemperature `json:"color_temperature,omitempty"`
-	Dynamics *Dynamics `json:"dynamics,omitempty"`
-	Effects  *Effects  `json:"effects,omitempty"`
-	Alert    *Alert    `json:"alert,omitempty"`
-	Mode     string    `json:"mode"`
+	HasDimming       bool               `json:"-"`
+	Gradient         json.RawMessage    `json:"gradient,omitempty"`
+	ID               string             `json:"id"`
+	IDV1             string             `json:"id_v1"`
+	Type             string             `json:"type"`
+	Owner            ResourceIdentifier `json:"owner"`
+	Metadata         Metadata           `json:"metadata"`
+	On               OnState            `json:"on"`
+	Dimming          Dimming            `json:"dimming"`
+	Color            *Color             `json:"color,omitempty"`
+	ColorTemperature *ColorTemperature  `json:"color_temperature,omitempty"`
+	Dynamics         *Dynamics          `json:"dynamics,omitempty"`
+	Effects          *Effects           `json:"effects,omitempty"`
+	Alert            *Alert             `json:"alert,omitempty"`
+	Mode             string             `json:"mode"`
 }
 
 // Group represents a grouped light resource
 type Group struct {
-	ID       string    `json:"id"`
-	IDV1     string    `json:"id_v1"`
-	Type     string    `json:"type"`
-	Owner    *ResourceIdentifier `json:"owner,omitempty"`
-	Metadata Metadata  `json:"metadata"`
-	On       OnState   `json:"on"`
-	Dimming  Dimming   `json:"dimming"`
-	Color    *Color    `json:"color,omitempty"`
-	ColorTemperature *ColorTemperature `json:"color_temperature,omitempty"`
-	Dynamics *Dynamics `json:"dynamics,omitempty"`
-	Effects  *Effects  `json:"effects,omitempty"`
-	Alert    *Alert    `json:"alert,omitempty"`
+	ID               string              `json:"id"`
+	IDV1             string              `json:"id_v1"`
+	Type             string              `json:"type"`
+	Owner            *ResourceIdentifier `json:"owner,omitempty"`
+	Metadata         Metadata            `json:"metadata"`
+	On               OnState             `json:"on"`
+	Dimming          Dimming             `json:"dimming"`
+	Color            *Color              `json:"color,omitempty"`
+	ColorTemperature *ColorTemperature   `json:"color_temperature,omitempty"`
+	Dynamics         *Dynamics           `json:"dynamics,omitempty"`
+	Effects          *Effects            `json:"effects,omitempty"`
+	Alert            *Alert              `json:"alert,omitempty"`
 }
 
 // Scene represents a scene resource
 type Scene struct {
-	ID       string              `json:"id"`
-	IDV1     string              `json:"id_v1"`
-	Type     string              `json:"type"`
-	Metadata Metadata            `json:"metadata"`
-	Group    ResourceIdentifier  `json:"group"`
-	Actions  []SceneAction       `json:"actions"`
-	Palette  *ScenePalette       `json:"palette,omitempty"`
-	Speed    float64             `json:"speed"`
-	AutoDynamic bool             `json:"auto_dynamic"`
+	ID          string             `json:"id"`
+	IDV1        string             `json:"id_v1"`
+	Type        string             `json:"type"`
+	Metadata    Metadata           `json:"metadata"`
+	Group       ResourceIdentifier `json:"group"`
+	Actions     []SceneAction      `json:"actions"`
+	Palette     *ScenePalette      `json:"palette,omitempty"`
+	Speed       float64            `json:"speed"`
+	AutoDynamic bool               `json:"auto_dynamic"`
 }
 
 // Bridge represents bridge information
 type Bridge struct {
-	ID          string    `json:"id"`
-	IDV1        string    `json:"id_v1"`
-	Type        string    `json:"type"`
-	Owner       ResourceIdentifier `json:"owner"`
-	BridgeID    string    `json:"bridge_id"`
-	TimeZone    TimeZone  `json:"time_zone"`
+	ID       string             `json:"id"`
+	IDV1     string             `json:"id_v1"`
+	Type     string             `json:"type"`
+	Owner    ResourceIdentifier `json:"owner"`
+	BridgeID string             `json:"bridge_id"`
+	TimeZone TimeZone           `json:"time_zone"`
 }
 
 // Metadata contains name and archetype information
 type Metadata struct {
-	Name      string `json:"name"`
-	Archetype string `json:"archetype"`
+	Name      string              `json:"name"`
+	Archetype string              `json:"archetype"`
 	Image     *ResourceIdentifier `json:"image,omitempty"`
 }
 
@@ -83,14 +87,14 @@ type OnState struct {
 
 // Dimming represents brightness control
 type Dimming struct {
-	Brightness    float64 `json:"brightness"`
-	MinDimLevel   float64 `json:"min_dim_level,omitempty"`
+	Brightness  float64 `json:"brightness"`
+	MinDimLevel float64 `json:"min_dim_level,omitempty"`
 }
 
 // Color represents color settings
 type Color struct {
-	XY    XY      `json:"xy"`
-	Gamut *Gamut  `json:"gamut,omitempty"`
+	XY        XY     `json:"xy"`
+	Gamut     *Gamut `json:"gamut,omitempty"`
 	GamutType string `json:"gamut_type,omitempty"`
 }
 
@@ -109,8 +113,8 @@ type Gamut struct {
 
 // ColorTemperature represents color temperature settings
 type ColorTemperature struct {
-	Mirek       int     `json:"mirek"`
-	MirekValid  bool    `json:"mirek_valid"`
+	Mirek       int          `json:"mirek"`
+	MirekValid  bool         `json:"mirek_valid"`
 	MirekSchema *MirekSchema `json:"mirek_schema,omitempty"`
 }
 
@@ -122,8 +126,8 @@ type MirekSchema struct {
 
 // Dynamics represents transition dynamics
 type Dynamics struct {
-	Status   string `json:"status,omitempty"`
-	Duration int    `json:"duration,omitempty"` // milliseconds
+	Status   string  `json:"status,omitempty"`
+	Duration int     `json:"duration,omitempty"` // milliseconds
 	Speed    float64 `json:"speed,omitempty"`
 }
 
@@ -149,14 +153,14 @@ type SceneAction struct {
 
 // ScenePalette represents scene color palette
 type ScenePalette struct {
-	Color        []PaletteColor `json:"color"`
-	Dimming      []Dimming      `json:"dimming"`
+	Color            []PaletteColor       `json:"color"`
+	Dimming          []Dimming            `json:"dimming"`
 	ColorTemperature []PaletteTemperature `json:"color_temperature"`
 }
 
 // PaletteColor represents a color in the palette
 type PaletteColor struct {
-	Color Color   `json:"color"`
+	Color   Color   `json:"color"`
 	Dimming Dimming `json:"dimming"`
 }
 
@@ -206,9 +210,9 @@ type SceneCreate struct {
 
 // SceneUpdate represents parameters for updating a scene
 type SceneUpdate struct {
-	Metadata *Metadata      `json:"metadata,omitempty"`
-	Actions  []SceneAction  `json:"actions,omitempty"`
-	Speed    *float64       `json:"speed,omitempty"`
+	Metadata *Metadata     `json:"metadata,omitempty"`
+	Actions  []SceneAction `json:"actions,omitempty"`
+	Speed    *float64      `json:"speed,omitempty"`
 }
 
 // RoomUpdate represents parameters for updating a room
