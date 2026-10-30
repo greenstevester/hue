@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "timezone": "Europe/Zurich",
+  "latitude": null,
+  "longitude": null,
+  "wake_time": "07:00",
+  "bedtime": "22:30",
+  "fixed_sunrise": "08:00",
+  "fixed_sunset": "18:00",
+  "sunrise_offset": "0m",
+  "sunset_offset": "-60m",
+  "transition": "30m",
+  "override_duration": "2h",
+  "rooms": [
+    {"name": "Kitchen"},
+    {"name": "Bedroom"}
+  ],
+  "exclude_lights": [],
+  "profiles": {
+    "morning": {"kelvin": 4000, "brightness": 90},
+    "daytime": {"kelvin": 3500, "brightness": 85},
+    "late_afternoon": {"kelvin": 2700, "brightness": 50},
+    "sunset": {"kelvin": 2200, "brightness": 35},
+    "evening": {"color": "#FF7800", "brightness": 15},
+    "night": {"color": "#FF1600", "brightness": 3}
+  }
+}

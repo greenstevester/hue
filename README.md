@@ -4,6 +4,9 @@ A Model Context Protocol (MCP) server and CLI for Philips Hue v2 API, enabling n
 
 ## Features
 
+Opt-in adaptive lighting for Kitchen and Bedroom is described in [CIRCADIAN.md](CIRCADIAN.md).
+Start with its read-only configuration validation and schedule preview commands.
+
 ### Core Lighting Control
 - ✅ **Native v2 Effects**: Candle, fire, sparkle, cosmos, prism, opal, glisten, and more!
 - ✅ **Comprehensive Light Control**: On/off, brightness, color, effects

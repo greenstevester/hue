@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kungfusheep/hue/effects"
 	"github.com/kungfusheep/hue/client"
+	"github.com/kungfusheep/hue/effects"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -378,7 +378,7 @@ func HandleListLights(hueClient *client.Client) server.ToolHandlerFunc {
 			if light.On.On {
 				status = fmt.Sprintf("on, brightness: %.0f%%", light.Dimming.Brightness)
 			}
-			result.WriteString(fmt.Sprintf("- %s (%s): %s (ID: %s, v1: %s)\n", 
+			result.WriteString(fmt.Sprintf("- %s (%s): %s (ID: %s, v1: %s)\n",
 				light.Metadata.Name, light.Metadata.Archetype, status, light.ID, light.IDV1))
 		}
 
@@ -401,7 +401,7 @@ func HandleListGroups(hueClient *client.Client) server.ToolHandlerFunc {
 			if group.On.On {
 				status = fmt.Sprintf("on, brightness: %.0f%%", group.Dimming.Brightness)
 			}
-			result.WriteString(fmt.Sprintf("- %s: %s (ID: %s, v1: %s)\n", 
+			result.WriteString(fmt.Sprintf("- %s: %s (ID: %s, v1: %s)\n",
 				group.Metadata.Name, status, group.ID, group.IDV1))
 		}
 
@@ -428,15 +428,15 @@ func HandleGetLightState(hueClient *client.Client) server.ToolHandlerFunc {
 		result.WriteString(fmt.Sprintf("Type: %s\n", light.Metadata.Archetype))
 		result.WriteString(fmt.Sprintf("On: %v\n", light.On.On))
 		result.WriteString(fmt.Sprintf("Brightness: %.0f%%\n", light.Dimming.Brightness))
-		
+
 		if light.Color != nil {
 			result.WriteString(fmt.Sprintf("Color XY: (%.3f, %.3f)\n", light.Color.XY.X, light.Color.XY.Y))
 		}
-		
+
 		if light.ColorTemperature != nil && light.ColorTemperature.MirekValid {
 			result.WriteString(fmt.Sprintf("Color Temperature: %d mirek\n", light.ColorTemperature.Mirek))
 		}
-		
+
 		if light.Effects != nil {
 			result.WriteString(fmt.Sprintf("Effect: %s\n", light.Effects.Effect))
 		}
@@ -499,7 +499,7 @@ func namedColorToHex(color string) string {
 		"purple":  "#800080",
 		"pink":    "#FFC0CB",
 	}
-	
+
 	hex, ok := colors[strings.ToLower(color)]
 	if ok {
 		return hex
@@ -511,12 +511,12 @@ func isValidHexColor(hex string) bool {
 	if !strings.HasPrefix(hex, "#") {
 		return false
 	}
-	
+
 	hex = strings.TrimPrefix(hex, "#")
 	if len(hex) != 6 {
 		return false
 	}
-	
+
 	_, err := strconv.ParseUint(hex, 16, 32)
 	return err == nil
 }
@@ -533,35 +533,35 @@ type BatchCommand struct {
 func HandleBatchCommands(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		
+
 		// Get commands JSON string
 		commandsJSON, ok := args["commands"].(string)
 		if !ok {
 			return mcp.NewToolResultError("commands JSON array is required"), nil
 		}
-		
+
 		// Parse commands
 		var commands []map[string]interface{}
 		if err := json.Unmarshal([]byte(commandsJSON), &commands); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to parse commands JSON: %v", err)), nil
 		}
-		
+
 		// Get delay between commands (default 100ms)
 		delayMs := 100
 		if d, ok := args["delay_ms"].(float64); ok {
 			delayMs = int(d)
 		}
-		
+
 		// Get async flag (default true for non-blocking)
 		async := true
 		if a, ok := args["async"].(bool); ok {
 			async = a
 		}
-		
+
 		// Check for cache_name to save this scene
 		cacheName, _ := args["cache_name"].(string)
 		cacheDescription, _ := args["cache_description"].(string)
-		
+
 		// If cache_name provided, save the scene
 		if cacheName != "" {
 			err := globalSceneCache.SaveScene(cacheName, commands, delayMs, cacheDescription)
@@ -570,28 +570,28 @@ func HandleBatchCommands(hueClient *client.Client) server.ToolHandlerFunc {
 			}
 			log.Printf("Cached scene '%s' with %d commands", cacheName, len(commands))
 		}
-		
+
 		// Generate batch ID for tracking
 		batchID := fmt.Sprintf("batch_%d_%d", time.Now().Unix(), len(commands))
-		
+
 		if async {
 			// Execute asynchronously - return immediately
 			go ExecuteBatchAsync(ctx, hueClient, commands, delayMs, batchID)
-			
-			responseMsg := fmt.Sprintf("Batch started asynchronously with ID: %s\nCommands: %d\nDelay between commands: %dms", 
+
+			responseMsg := fmt.Sprintf("Batch started asynchronously with ID: %s\nCommands: %d\nDelay between commands: %dms",
 				batchID, len(commands), delayMs)
-			
+
 			if cacheName != "" {
 				responseMsg = fmt.Sprintf("Creating and caching atmosphere: %s...\n%s", cacheName, responseMsg)
 			}
-			
+
 			return mcp.NewToolResultText(responseMsg), nil
 		} else {
 			// Execute synchronously
 			log.Printf("Starting synchronous batch %s with %d commands", batchID, len(commands))
-			
+
 			results := ExecuteBatch(ctx, hueClient, commands, delayMs)
-			
+
 			// Summarize results
 			successful := 0
 			failed := 0
@@ -602,14 +602,14 @@ func HandleBatchCommands(hueClient *client.Client) server.ToolHandlerFunc {
 					failed++
 				}
 			}
-			
-			responseMsg := fmt.Sprintf("Batch completed: %d successful, %d failed\nBatch ID: %s", 
+
+			responseMsg := fmt.Sprintf("Batch completed: %d successful, %d failed\nBatch ID: %s",
 				successful, failed, batchID)
-			
+
 			if cacheName != "" {
 				responseMsg = fmt.Sprintf("Created and cached atmosphere: %s\n%s", cacheName, responseMsg)
 			}
-			
+
 			return mcp.NewToolResultText(responseMsg), nil
 		}
 	}
@@ -767,7 +767,12 @@ type BatchResult struct {
 // ExecuteBatch executes batch commands synchronously and returns results
 func ExecuteBatch(ctx context.Context, client *client.Client, commands []map[string]interface{}, delayMs int) []BatchResult {
 	results := make([]BatchResult, 0, len(commands))
-	
+	release, err := client.BeginActivity(ctx, nil)
+	if err != nil {
+		return []BatchResult{{Error: err}}
+	}
+	defer release()
+
 	for i, cmd := range commands {
 		// Extract command parameters
 		action, _ := cmd["action"].(string)
@@ -777,7 +782,7 @@ func ExecuteBatch(ctx context.Context, client *client.Client, commands []map[str
 		if d, ok := cmd["duration"].(float64); ok {
 			duration = int(d)
 		}
-		
+
 		// Execute the command
 		result, err := executeBatchCommand(ctx, client, action, targetID, value, duration)
 		if err != nil {
@@ -793,24 +798,32 @@ func ExecuteBatch(ctx context.Context, client *client.Client, commands []map[str
 				Error:   nil,
 			})
 		}
-		
+
 		// Add delay between commands (except for the last one)
 		if i < len(commands)-1 && delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			select {
+			case <-time.After(time.Duration(delayMs) * time.Millisecond):
+			case <-ctx.Done():
+				return append(results, BatchResult{Error: ctx.Err()})
+			}
 		}
 	}
-	
+
 	return results
 }
 
 // ExecuteBatchAsync executes batch commands asynchronously (exported for testing)
 func ExecuteBatchAsync(ctx context.Context, client *client.Client, commands []map[string]interface{}, delayMs int, batchID string) {
-	// Create a new context that won't be cancelled by the parent
-	asyncCtx := context.Background()
-	
+	release, err := client.BeginActivity(ctx, nil)
+	if err != nil {
+		log.Printf("batch %s: %v", batchID, err)
+		return
+	}
+	defer release()
+
 	// Log batch start
 	log.Printf("Starting async batch %s with %d commands", batchID, len(commands))
-	
+
 	// Process each command
 	for i, cmd := range commands {
 		// Check if context was cancelled
@@ -820,7 +833,7 @@ func ExecuteBatchAsync(ctx context.Context, client *client.Client, commands []ma
 			return
 		default:
 		}
-		
+
 		// Extract command parameters
 		action, _ := cmd["action"].(string)
 		targetID, _ := cmd["target_id"].(string)
@@ -829,20 +842,24 @@ func ExecuteBatchAsync(ctx context.Context, client *client.Client, commands []ma
 		if d, ok := cmd["duration"].(float64); ok {
 			duration = int(d)
 		}
-		
+
 		// Execute the command
-		result, err := executeBatchCommand(asyncCtx, client, action, targetID, value, duration)
+		result, err := executeBatchCommand(ctx, client, action, targetID, value, duration)
 		if err != nil {
 			log.Printf("Batch %s - Command %d (%s) failed: %v", batchID, i, action, err)
 		} else {
 			log.Printf("Batch %s - Command %d: %s", batchID, i, result)
 		}
-		
+
 		// Add delay between commands (except for the last one)
 		if i < len(commands)-1 && delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			select {
+			case <-time.After(time.Duration(delayMs) * time.Millisecond):
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
-	
+
 	log.Printf("Batch %s completed", batchID)
 }
