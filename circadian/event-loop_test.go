@@ -79,7 +79,9 @@ func eventLoopFixture(t *testing.T) (chan<- string, chan<- time.Time, *Engine) {
 	go func() { done <- run(ctx, c, e, func(string, ...interface{}) {}, ticks) }()
 	t.Cleanup(func() {
 		cancel()
-		<-done
+		if err := <-done; err != nil {
+			t.Errorf("stopping the event loop was reported as a failure: %v", err)
+		}
 	})
 	select {
 	case <-refreshed:
@@ -135,6 +137,23 @@ func TestOnlyLightRoomAndDeviceChangesStopAutomationUntilRestart(t *testing.T) {
 			if !test.wantFrozen && err != nil {
 				t.Fatalf("unrelated Bridge change stopped automation: %v", err)
 			}
+		})
+	}
+}
+
+func TestStoppingTheEventLoopIsNotAFailure(t *testing.T) {
+	// A stop signal often lands while the loop is busy, for example mid-refresh. By the time the
+	// loop looks again, the event stream has closed too, and Go picks between "cancelled" and
+	// "closed" at random, so run it several times.
+	for i := 0; i < 25; i++ {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			pushed, _, e := eventLoopFixture(t)
+			e.mu.Lock() // the loop stalls in Observe until the stream has closed
+			pushed <- `[{"type":"update","data":[{"id":"b","type":"light","dimming":{"brightness":20}}]}]`
+			time.Sleep(50 * time.Millisecond) // let the loop pick up the event and block on the lock
+			// Cleanups run last-registered first: this releases the lock 200 ms after the
+			// fixture's own cleanup has cancelled the loop.
+			t.Cleanup(func() { time.AfterFunc(200*time.Millisecond, e.mu.Unlock) })
 		})
 	}
 }

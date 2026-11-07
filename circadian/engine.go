@@ -659,13 +659,20 @@ func run(
 		}
 	}
 	defer save()
+	// Stopping closes the stream as well, and the loop may notice that first: a normal stop.
+	closed := func() error {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return errors.New("event stream closed")
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case _, ok := <-stream.Connected():
 			if !ok {
-				return errors.New("event stream closed")
+				return closed()
 			}
 			if err := refresh(); err != nil {
 				logf("circadian refresh: %v", err)
@@ -673,13 +680,13 @@ func run(
 			refreshed = e.now()
 		case err, ok := <-stream.Errors():
 			if !ok {
-				return errors.New("event stream closed")
+				return closed()
 			}
 			e.SetHealthy(false)
 			logf("circadian observation paused: %v", err)
 		case event, ok := <-stream.Events():
 			if !ok {
-				return errors.New("event stream closed")
+				return closed()
 			}
 			for _, d := range event.Data {
 				// Scenes, zones and automations come and go without changing which lights are managed.
