@@ -3,6 +3,7 @@ package webui
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -332,5 +333,30 @@ func TestIndividualLightExclusionPersistsAndCanBeReenabled(t *testing.T) {
 	response = request(s, "POST", "/api/light", `{"id":"office","enabled":true}`)
 	if response.Code != 409 {
 		t.Fatal("unmanaged light was accepted")
+	}
+}
+
+func TestHostCheckFollowsAddressChangesWithoutRestart(t *testing.T) {
+	s, _, _ := fixture(t)
+	current := []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.126"), Mask: net.CIDRMask(24, 32)}}
+	s.addresses = func() ([]net.Addr, error) { return current, nil }
+	get := func(host string) int {
+		r := httptest.NewRequest(http.MethodGet, "http://"+host+"/api/status", nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		return w.Code
+	}
+	if code := get("10.0.0.126:8088"); code != http.StatusOK {
+		t.Fatalf("current address refused: %d", code)
+	}
+	current = []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.140"), Mask: net.CIDRMask(24, 32)}}
+	if code := get("10.0.0.140:8088"); code != http.StatusOK {
+		t.Fatalf("new address from the router refused: %d", code)
+	}
+	if code := get("10.0.0.126:8088"); code != http.StatusForbidden {
+		t.Fatalf("old address still accepted: %d", code)
+	}
+	if code := get("lights.example.com"); code != http.StatusForbidden {
+		t.Fatalf("outside hostname accepted: %d", code)
 	}
 }

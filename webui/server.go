@@ -38,7 +38,7 @@ type Server struct {
 	configPath string
 	now        func() time.Time
 	handler    http.Handler
-	hosts      map[string]bool
+	addresses  func() ([]net.Addr, error)
 }
 
 type scheduledProfile struct {
@@ -63,21 +63,8 @@ func New(controller Controller, config circadian.Config, path string, now func()
 	if controller == nil || now == nil || path == "" {
 		return nil, fmt.Errorf("controller, configuration path, and clock are required")
 	}
-	hosts := map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true}
-	if name, err := os.Hostname(); err == nil {
-		hosts[strings.ToLower(name)] = true
-		hosts[strings.ToLower(name)+".local"] = true
-	}
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, fmt.Errorf("read local addresses: %w", err)
-	}
-	for _, address := range addresses {
-		if ip, _, err := net.ParseCIDR(address.String()); err == nil {
-			hosts[ip.String()] = true
-		}
-	}
-	s := &Server{controller: controller, config: config, configPath: path, now: now, hosts: hosts}
+	s := &Server{controller: controller, config: config, configPath: path, now: now,
+		addresses: net.InterfaceAddrs}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("POST /api/control", s.control)
@@ -101,7 +88,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if value, _, err := net.SplitHostPort(host); err == nil {
 		host = value
 	}
-	if !s.hosts[strings.ToLower(host)] {
+	if !s.localHost(strings.ToLower(host)) {
 		http.Error(w, "Unrecognised host", http.StatusForbidden)
 		return
 	}
@@ -110,6 +97,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Cache-Control", "no-store")
 	s.handler.ServeHTTP(w, r)
+}
+
+// localHost accepts this machine's names and its current addresses. Addresses are read on each
+// request, so a new address from the router works without a restart. Other names are refused,
+// which stops a web page from reaching this server through a hostname it controls.
+func (s *Server) localHost(host string) bool {
+	switch host {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	if name, err := os.Hostname(); err == nil {
+		name = strings.ToLower(name)
+		if host == name || host == name+".local" {
+			return true
+		}
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	addresses, err := s.addresses()
+	if err != nil {
+		log.Printf("read local addresses: %v", err)
+		return false
+	}
+	for _, address := range addresses {
+		if local, _, err := net.ParseCIDR(address.String()); err == nil && local.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

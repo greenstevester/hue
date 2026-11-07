@@ -85,6 +85,11 @@ Open http://127.0.0.1:8088. To make it available on your home network, add
 and serves the page. Its HTML, styles, and JavaScript are embedded in the Go binary; no browser
 assets are downloaded and no frontend build step is required. Bridge credentials stay on the server.
 
+The page has no login. Anyone who can reach it on your network can switch automation on or off,
+change wake and bed times, and exclude lights. The server refuses requests sent to other host names
+and changes sent from other websites, so a website you visit cannot change your settings. It accepts
+the controller's current addresses, so a new address from your router works without a restart.
+
 Saving controls requires the configuration file's directory to be writable. The web interface remains
 available when automation is disabled.
 
