@@ -117,3 +117,49 @@ func TestSequenceHoldsActivityUntilCompletionAndReportsErrors(t *testing.T) {
 	}
 	s.Stop()
 }
+
+func TestListingSequencesDoesNotWaitWhileLightsAreBeingClaimed(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"errors":[],"data":[]}`)
+	}))
+	defer server.Close()
+	c := client.NewClient(strings.TrimPrefix(server.URL, "https://"), "test", server.Client())
+	claiming := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	c.SetWriteGuard(func(_ context.Context, _ string, data interface{}) error {
+		if a, ok := data.(client.Activity); ok && a.Active {
+			once.Do(func() { close(claiming) })
+			<-release
+		}
+		return nil
+	})
+	s := NewScheduler(c)
+	defer s.Stop()
+	var releaseOnce sync.Once
+	free := func() { releaseOnce.Do(func() { close(release) }) }
+	defer free() // runs before Stop, so a failed check cannot leave the claim waiting forever
+	started := make(chan error, 1)
+	go func() {
+		_, err := s.ExecuteSequence(&Sequence{ID: "slow", Commands: []Command{{Type: "light", Action: "on", Target: "k"}}})
+		started <- err
+	}()
+	<-claiming
+	listed := make(chan map[string]*Sequence, 1)
+	go func() { listed <- s.GetSequences() }()
+	select {
+	case sequences := <-listed:
+		if _, ok := sequences["slow"]; !ok {
+			t.Fatal("sequence being started is not listed")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("listing sequences waited for the lights to be claimed")
+	}
+	if _, err := s.ExecuteSequence(&Sequence{ID: "slow", Commands: []Command{{Type: "light", Action: "on", Target: "k"}}}); err == nil {
+		t.Fatal("same sequence started twice")
+	}
+	free()
+	if err := <-started; err != nil {
+		t.Fatal(err)
+	}
+}
