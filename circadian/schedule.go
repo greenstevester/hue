@@ -41,14 +41,29 @@ func ScheduleForDay(c Config, date time.Time) []ScheduledPhase {
 func wallTime(date time.Time, clock string) time.Time {
 	parsed, _ := time.Parse("15:04", clock)
 	wanted := parsed.Hour()*60 + parsed.Minute()
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	end := start.AddDate(0, 0, 1)
+	start := dayStart(date)
+	end := dayStart(start.AddDate(0, 0, 1))
+	// Most days have no clock change, so every wall minute exists exactly once.
+	if _, zoneEnd := start.ZoneBounds(); start.Hour() == 0 && start.Minute() == 0 &&
+		(zoneEnd.IsZero() || !zoneEnd.Before(end)) {
+		return start.Add(time.Duration(wanted) * time.Minute)
+	}
 	for t := start; t.Before(end); t = t.Add(time.Minute) {
 		if t.Hour()*60+t.Minute() >= wanted {
 			return t
 		}
 	}
 	return end
+}
+
+// dayStart returns the first instant of the calendar day. Where clocks jump forward at midnight
+// (Havana, for example), midnight does not exist and Go may resolve it to 23:00 the day before.
+func dayStart(date time.Time) time.Time {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	for start.Day() != date.Day() {
+		start = start.Add(time.Minute)
+	}
+	return start
 }
 
 // wakeAndBed returns the day's sunrise (with offset), wake time, and the first bedtime after waking.
