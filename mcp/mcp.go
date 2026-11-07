@@ -759,6 +759,21 @@ func executeBatchCommand(ctx context.Context, hueClient *client.Client, action, 
 	}
 }
 
+// batchTargets lists the lights a batch touches, so the circadian controller holds only those.
+// Group and scene commands can reach any light, so they return nil, which claims every managed light.
+func batchTargets(commands []map[string]interface{}) []string {
+	var targets []string
+	for _, cmd := range commands {
+		action, _ := cmd["action"].(string)
+		target, _ := cmd["target_id"].(string)
+		if (!strings.HasPrefix(action, "light_") && action != "identify_light") || target == "" {
+			return nil
+		}
+		targets = append(targets, target)
+	}
+	return targets
+}
+
 // BatchResult represents the result of a batch command
 type BatchResult struct {
 	Success bool
@@ -769,7 +784,7 @@ type BatchResult struct {
 // ExecuteBatch executes batch commands synchronously and returns results
 func ExecuteBatch(ctx context.Context, client *client.Client, commands []map[string]interface{}, delayMs int) []BatchResult {
 	results := make([]BatchResult, 0, len(commands))
-	release, err := client.BeginActivity(ctx, nil)
+	release, err := client.BeginActivity(ctx, batchTargets(commands))
 	if err != nil {
 		return []BatchResult{{Error: err}}
 	}
@@ -816,7 +831,7 @@ func ExecuteBatch(ctx context.Context, client *client.Client, commands []map[str
 
 // ExecuteBatchAsync executes batch commands asynchronously (exported for testing)
 func ExecuteBatchAsync(ctx context.Context, client *client.Client, commands []map[string]interface{}, delayMs int, batchID string) {
-	release, err := client.BeginActivity(ctx, nil)
+	release, err := client.BeginActivity(ctx, batchTargets(commands))
 	if err != nil {
 		log.Printf("batch %s: %v", batchID, err)
 		return

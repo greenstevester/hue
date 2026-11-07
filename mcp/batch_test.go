@@ -43,3 +43,34 @@ func TestAsyncBatchKeepsRunningAfterTheToolCallEnds(t *testing.T) {
 		t.Fatalf("batch stopped when the tool call ended: %d of 3 commands sent", got)
 	}
 }
+
+func TestBatchClaimsOnlyTheLightsItTouches(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"errors":[],"data":[]}`)
+	}))
+	defer server.Close()
+	c := client.NewClient(strings.TrimPrefix(server.URL, "https://"), "test", server.Client())
+	var claimed [][]string
+	c.SetWriteGuard(func(_ context.Context, _ string, data interface{}) error {
+		if a, ok := data.(client.Activity); ok && a.Active {
+			claimed = append(claimed, a.Targets)
+		}
+		return nil
+	})
+	office := []map[string]interface{}{
+		{"action": "light_on", "target_id": "office-lamp"},
+		{"action": "light_color", "target_id": "office-strip", "value": "#FF0000"},
+	}
+	withGroup := append(office, map[string]interface{}{"action": "group_off", "target_id": "office"})
+	ExecuteBatch(context.Background(), c, office, 0)
+	ExecuteBatch(context.Background(), c, withGroup, 0)
+	if len(claimed) != 2 {
+		t.Fatalf("expected two claims, got %v", claimed)
+	}
+	if got := strings.Join(claimed[0], ","); got != "office-lamp,office-strip" {
+		t.Fatalf("light-only batch claimed %q, want only its own lights", got)
+	}
+	if claimed[1] != nil {
+		t.Fatalf("batch with a group command claimed %v, want every managed light", claimed[1])
+	}
+}
