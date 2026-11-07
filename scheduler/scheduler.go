@@ -102,13 +102,13 @@ func (s *Scheduler) ExecuteCommand(cmd Command) error {
 
 // ExecuteSequence starts executing a sequence asynchronously
 func (s *Scheduler) ExecuteSequence(seq *Sequence) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ctx.Err() != nil {
-		return "", s.ctx.Err()
-	}
 	if seq == nil || len(seq.Commands) == 0 {
 		return "", fmt.Errorf("sequence needs commands")
+	}
+	s.mu.Lock()
+	if s.ctx.Err() != nil {
+		s.mu.Unlock()
+		return "", s.ctx.Err()
 	}
 
 	if seq.ID == "" {
@@ -116,12 +116,20 @@ func (s *Scheduler) ExecuteSequence(seq *Sequence) (string, error) {
 	}
 
 	if _, exists := s.sequences[seq.ID]; exists && s.sequences[seq.ID].Running {
+		s.mu.Unlock()
 		return "", fmt.Errorf("sequence %s is already running", seq.ID)
 	}
 
 	copy := cloneSequence(seq)
 	copy.Running = true
 	copy.ctx, copy.cancel = context.WithCancel(s.ctx)
+	copy.release = func() {}
+	// Reserve the ID and count the run now, then let go of the lock: claiming the lights below can
+	// wait for an automation write to finish, and listing or stopping sequences must not wait with it.
+	s.sequences[copy.ID] = copy
+	s.wg.Add(1)
+	s.mu.Unlock()
+
 	var targets []string
 	for _, cmd := range copy.Commands {
 		if cmd.Type != "light" {
@@ -131,13 +139,19 @@ func (s *Scheduler) ExecuteSequence(seq *Sequence) (string, error) {
 		targets = append(targets, cmd.Target)
 	}
 	release, err := s.client.BeginActivity(copy.ctx, targets)
+	s.mu.Lock()
 	if err != nil {
+		copy.Running = false
+		if s.sequences[copy.ID] == copy {
+			delete(s.sequences, copy.ID)
+		}
+		s.mu.Unlock()
 		copy.cancel()
+		s.wg.Done()
 		return "", err
 	}
 	copy.release = release
-	s.sequences[copy.ID] = copy
-	s.wg.Add(1)
+	s.mu.Unlock()
 
 	// Start the sequence in a goroutine
 	go s.runSequence(copy)
