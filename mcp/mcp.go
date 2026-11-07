@@ -597,16 +597,27 @@ func HandleBatchCommands(hueClient *client.Client) server.ToolHandlerFunc {
 			// Summarize results
 			successful := 0
 			failed := 0
+			var reasons []string
 			for _, result := range results {
 				if result.Success {
 					successful++
 				} else {
 					failed++
+					reason := result.Message
+					if reason == "" && result.Error != nil {
+						reason = result.Error.Error()
+					}
+					if reason != "" {
+						reasons = append(reasons, "- "+reason)
+					}
 				}
 			}
 
 			responseMsg := fmt.Sprintf("Batch completed: %d successful, %d failed\nBatch ID: %s",
 				successful, failed, batchID)
+			if len(reasons) > 0 {
+				responseMsg += "\nFailures:\n" + strings.Join(reasons, "\n")
+			}
 
 			if cacheName != "" {
 				responseMsg = fmt.Sprintf("Created and cached atmosphere: %s\n%s", cacheName, responseMsg)
