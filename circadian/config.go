@@ -77,7 +77,8 @@ func LoadConfig(path string) (Config, error) {
 }
 
 func (c Config) Validate() error {
-	if _, err := time.LoadLocation(c.Timezone); err != nil {
+	location, err := time.LoadLocation(c.Timezone)
+	if err != nil {
 		return err
 	}
 	for _, value := range []string{c.Bedtime, c.FixedSunrise, c.FixedSunset} {
@@ -122,6 +123,11 @@ func (c Config) Validate() error {
 		math.Abs(*c.Latitude) > 90 || math.Abs(*c.Longitude) > 180) {
 		return fmt.Errorf("coordinates outside supported range")
 	}
+	if c.WakeTime == "sunrise" {
+		if err := c.checkSunriseDays(location); err != nil {
+			return err
+		}
+	}
 	if len(c.Rooms) != 2 {
 		return fmt.Errorf("configure exactly Kitchen and Bedroom")
 	}
@@ -144,6 +150,19 @@ func (c Config) Validate() error {
 	for phase, p := range c.Profiles {
 		if err := validateProfile(phase, p); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// checkSunriseDays applies the six-hour rule to every day of a reference leap year, because a
+// sunrise wake moves with the seasons. Sunrise on a given date shifts by a minute or two between years.
+func (c Config) checkSunriseDays(location *time.Location) error {
+	for day := time.Date(2028, 1, 1, 12, 0, 0, 0, location); day.Year() == 2028; day = day.AddDate(0, 0, 1) {
+		_, wake, bed := wakeAndBed(c, day)
+		if bed.Sub(wake) < 6*time.Hour {
+			return fmt.Errorf("wake at sunrise leaves less than six hours before bedtime around %s",
+				day.Format("2 January"))
 		}
 	}
 	return nil

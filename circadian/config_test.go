@@ -19,6 +19,14 @@ func TestConfigRejectsUnapprovedRoomsAndInvalidValues(t *testing.T) {
 		{"invalid location", func(c *Config) { a, b := 91.0, 0.0; c.Latitude = &a; c.Longitude = &b }},
 		{"clock", func(c *Config) { c.WakeTime = "25:00" }},
 		{"short waking interval", func(c *Config) { c.Bedtime = "08:00" }},
+		{"sunrise wake shifted to evening", func(c *Config) {
+			lat, lon := 47.3769, 8.5417
+			c.Latitude, c.Longitude, c.WakeTime, c.SunriseOffset = &lat, &lon, "sunrise", "12h"
+		}},
+		{"bedtime just after summer sunrise", func(c *Config) {
+			lat, lon := 47.3769, 8.5417
+			c.Latitude, c.Longitude, c.WakeTime, c.Bedtime = &lat, &lon, "sunrise", "06:00"
+		}},
 		{"duration", func(c *Config) { c.Transition = "0m" }},
 		{"offset", func(c *Config) { c.SunsetOffset = "30h" }},
 		{"colour", func(c *Config) { c.Profiles["night"] = Profile{Color: "no", Brightness: 3} }},
