@@ -49,6 +49,8 @@ type Engine struct {
 	connection       func() bool
 	retryAt          time.Time
 	failures         int
+	statePath        string // where switch-offs are saved; empty keeps them in memory only
+	stateDirty       bool   // switch-offs changed since the last save
 }
 
 type LightStatus struct {
@@ -218,6 +220,9 @@ func (e *Engine) hold(s *lightState) {
 	s.revision++
 	s.last = client.LightUpdate{}
 	s.pending = false
+	if s.switchedOff {
+		e.stateDirty = true
+	}
 	s.switchedOff = false
 }
 
@@ -498,6 +503,9 @@ func (e *Engine) Tick(ctx context.Context) error {
 			e.healthy = false
 			e.failed(err)
 		} else if update.On != nil {
+			if selected.switchedOff == update.On.On {
+				e.stateDirty = true
+			}
 			selected.switchedOff = !update.On.On
 		}
 		if err == nil {
@@ -636,6 +644,21 @@ func run(
 		return nil
 	}
 	var refreshed time.Time
+	var saveProblem string
+	save := func() {
+		err := e.saveSwitchedOff()
+		if err != nil && err.Error() != saveProblem {
+			logf("circadian state: %v", err) // once per new problem, not every second
+		}
+		if err == nil && saveProblem != "" {
+			logf("circadian state saved again")
+		}
+		saveProblem = ""
+		if err != nil {
+			saveProblem = err.Error()
+		}
+	}
+	defer save()
 	for {
 		select {
 		case <-ctx.Done():
@@ -686,6 +709,7 @@ func run(
 			if err := e.Tick(ctx); err != nil {
 				logf("circadian update: %v", err)
 			}
+			save()
 		}
 	}
 }

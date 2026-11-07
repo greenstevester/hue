@@ -36,3 +36,6 @@ claude_desktop_config.json
 
 # Built CLI binary at the repo root
 /hue
+
+# Lights the circadian schedule switched off, saved beside its configuration
+*.state.json

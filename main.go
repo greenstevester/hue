@@ -154,7 +154,8 @@ func runMCPServer() {
 			log.Fatalf("Circadian configuration: %v", err)
 		}
 		if configuration.Enabled {
-			engine, done, stop, err := circadian.Start(ctx, hueClient, configuration, log.Printf)
+			engine, done, stop, err := circadian.Start(ctx, hueClient, configuration,
+				circadian.StatePath(path), log.Printf)
 			if err != nil {
 				log.Fatalf("Start circadian controller: %v", err)
 			}

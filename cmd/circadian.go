@@ -85,7 +85,7 @@ func newCircadianCommand() *cobra.Command {
 		}
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
-		engine, done, stop, err := circadian.Start(ctx, hueClient, c, log.Printf)
+		engine, done, stop, err := circadian.Start(ctx, hueClient, c, circadian.StatePath(path), log.Printf)
 		if err != nil {
 			return err
 		}

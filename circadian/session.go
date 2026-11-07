@@ -11,9 +11,11 @@ import (
 )
 
 // Start discovers the two rooms, acquires local ownership, and starts paused.
-// The returned stop function cancels all work and waits for cleanup.
+// statePath names the file that remembers the schedule's switch-offs (see StatePath); empty keeps
+// them in memory only. The returned stop function cancels all work and waits for cleanup.
 func Start(
-	parent context.Context, c *client.Client, config Config, logf func(string, ...interface{}),
+	parent context.Context, c *client.Client, config Config, statePath string,
+	logf func(string, ...interface{}),
 ) (*Engine, <-chan error, func(), error) {
 	if err := config.Validate(); err != nil {
 		return nil, nil, nil, err
@@ -63,6 +65,12 @@ func Start(
 	}
 	if config.Latitude == nil {
 		logf("circadian uses fixed sunrise/sunset times; location is not configured")
+	}
+	// Restore before the event loop starts, so no refresh or resume can run ahead of it.
+	if statePath != "" {
+		if err := engine.RememberSwitchedOff(statePath); err != nil {
+			logf("circadian state: %v", err)
+		}
 	}
 	done := make(chan error, 1)
 	finished := make(chan struct{})

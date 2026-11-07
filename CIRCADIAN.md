@@ -139,7 +139,10 @@ The controller adapts lights already on. It does not turn a manually extinguishe
 a hold expires. White Ambiance devices use their advertised temperature limits and switch off for
 colour-only phases. Dimming-only devices follow brightness during white phases and switch off for
 colour-only phases. A light switched off by that capability fallback can return during a white phase.
-Colour devices use their reported gamut. Gradient strips initially receive a uniform colour.
+The controller saves those switch-offs in a file beside its configuration (config.state.json for
+config.json), so such a light still comes back at wake after a restart. At startup it drops any saved
+light that is already on again. It cannot see a light that someone switched on and off again while
+it was stopped, so that light also comes back at wake. Colour devices use their reported gamut. Gradient strips initially receive a uniform colour.
 
 External changed light values create a hold for override_duration, two hours by default. Another
 manual change restarts that duration. Local scenes, sequences, and batches reserve control for their
