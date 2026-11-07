@@ -55,6 +55,44 @@ func TestWallTimeHandlesDaylightSavingGapAndRepeatedMinute(t *testing.T) {
 	}
 }
 
+func TestWallTimeMatchesMinuteByMinuteSearchEveryDay(t *testing.T) {
+	// minutes lists every minute whose local calendar date is the given day, plus the next day's first.
+	minutes := func(date time.Time) []time.Time {
+		var result []time.Time
+		sameDay := func(t time.Time) bool { return t.Year() == date.Year() && t.YearDay() == date.YearDay() }
+		t := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).Add(-3 * time.Hour)
+		for ; !sameDay(t); t = t.Add(time.Minute) {
+		}
+		for ; sameDay(t); t = t.Add(time.Minute) {
+			result = append(result, t)
+		}
+		return append(result, t)
+	}
+	// Havana and São Paulo have changed clocks at midnight; Lord Howe Island shifts by thirty minutes.
+	for _, zone := range []string{"UTC", "Europe/Zurich", "America/Havana", "Australia/Lord_Howe", "America/Sao_Paulo"} {
+		location, err := time.LoadLocation(zone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for day := time.Date(2018, 1, 1, 12, 0, 0, 0, location); day.Year() < 2020; day = day.AddDate(0, 0, 1) {
+			day := minutes(day)
+			for _, clock := range []string{"00:00", "00:30", "01:59", "02:00", "02:30", "03:00", "07:15", "23:59"} {
+				parsed, _ := time.Parse("15:04", clock)
+				want := day[len(day)-1]
+				for _, minute := range day[:len(day)-1] {
+					if minute.Hour()*60+minute.Minute() >= parsed.Hour()*60+parsed.Minute() {
+						want = minute
+						break
+					}
+				}
+				if got := wallTime(day[0], clock); !got.Equal(want) {
+					t.Fatalf("%s %s %s: got %s want %s", zone, day[0].Format("2006-01-02"), clock, got, want)
+				}
+			}
+		}
+	}
+}
+
 func TestSunriseWakeAcceptsTheZurichConfiguration(t *testing.T) {
 	if _, err := LoadConfig(filepath.Join("..", "config", "circadian-zurich.json")); err != nil {
 		t.Fatal(err)
