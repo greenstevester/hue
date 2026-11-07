@@ -575,8 +575,10 @@ func HandleBatchCommands(hueClient *client.Client) server.ToolHandlerFunc {
 		batchID := fmt.Sprintf("batch_%d_%d", time.Now().Unix(), len(commands))
 
 		if async {
-			// Execute asynchronously - return immediately
-			go ExecuteBatchAsync(ctx, hueClient, commands, delayMs, batchID)
+			// Execute asynchronously - return immediately. The batch outlives this tool call, so it
+			// keeps the call's values but not its cancellation: mcp-go v0.54.0 cancels a call's
+			// context as soon as the call returns.
+			go ExecuteBatchAsync(context.WithoutCancel(ctx), hueClient, commands, delayMs, batchID)
 
 			responseMsg := fmt.Sprintf("Batch started asynchronously with ID: %s\nCommands: %d\nDelay between commands: %dms",
 				batchID, len(commands), delayMs)
