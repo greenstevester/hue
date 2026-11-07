@@ -73,7 +73,7 @@ func TestSessionDiscoversOnlyApprovedRoomsStartsPausedAndReleasesOwnership(t *te
 	c := client.NewClient(strings.TrimPrefix(server.URL, "https://"), "test", server.Client())
 	config := DefaultConfig()
 	config.Enabled = true
-	engine, done, stop, err := Start(context.Background(), c, config, func(string, ...interface{}) {})
+	engine, done, stop, err := Start(context.Background(), c, config, "", func(string, ...interface{}) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestSessionDiscoversOnlyApprovedRoomsStartsPausedAndReleasesOwnership(t *te
 	if !engine.Status().Paused || len(engine.Status().Lights) != 2 {
 		t.Fatalf("%+v", engine.Status())
 	}
-	if _, _, _, err := Start(context.Background(), c, config, func(string, ...interface{}) {}); err == nil {
+	if _, _, _, err := Start(context.Background(), c, config, "", func(string, ...interface{}) {}); err == nil {
 		t.Fatal("duplicate owner accepted")
 	}
 	stop()
@@ -98,7 +98,7 @@ func TestSessionDiscoversOnlyApprovedRoomsStartsPausedAndReleasesOwnership(t *te
 	}
 	config.Enabled = false
 	config.ExcludeLights = []string{"k", "b"}
-	disabled, _, stopAgain, err := Start(context.Background(), c, config, func(string, ...interface{}) {})
+	disabled, _, stopAgain, err := Start(context.Background(), c, config, "", func(string, ...interface{}) {})
 	if err != nil {
 		t.Fatalf("ownership not released: %v", err)
 	}

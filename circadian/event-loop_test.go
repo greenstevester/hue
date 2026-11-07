@@ -13,8 +13,9 @@ import (
 	"github.com/kungfusheep/hue/client"
 )
 
-// eventLoopFixture runs the real event loop against a fake Bridge whose stream sends what the test pushes.
-func eventLoopFixture(t *testing.T) (chan<- string, *Engine) {
+// eventLoopFixture runs the real event loop against a fake Bridge whose stream sends what the test
+// pushes. Sending on the returned ticks channel stands in for the loop's one-second clock.
+func eventLoopFixture(t *testing.T) (chan<- string, chan<- time.Time, *Engine) {
 	t.Helper()
 	rooms := []client.Room{
 		{ID: "kitchen", Metadata: client.Metadata{Name: "Kitchen"},
@@ -74,7 +75,8 @@ func eventLoopFixture(t *testing.T) (chan<- string, *Engine) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- run(ctx, c, e, func(string, ...interface{}) {}, nil) }()
+	ticks := make(chan time.Time)
+	go func() { done <- run(ctx, c, e, func(string, ...interface{}) {}, ticks) }()
 	t.Cleanup(func() {
 		cancel()
 		<-done
@@ -85,7 +87,7 @@ func eventLoopFixture(t *testing.T) (chan<- string, *Engine) {
 		t.Fatal("first refresh never happened")
 	}
 	waitFor(t, func() bool { return e.Status().Healthy })
-	return pushed, e
+	return pushed, ticks, e
 }
 
 func waitFor(t *testing.T, condition func() bool) {
@@ -115,7 +117,7 @@ func TestOnlyLightRoomAndDeviceChangesStopAutomationUntilRestart(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pushed, e := eventLoopFixture(t)
+			pushed, _, e := eventLoopFixture(t)
 			// The light update afterwards proves the loop has already handled the event under test.
 			pushed <- "[" + test.event + `,{"type":"update","data":[{"id":"b","type":"light","dimming":{"brightness":20}}]}]`
 			waitFor(t, func() bool {
