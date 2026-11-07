@@ -21,7 +21,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   min-height: 44px; padding: 6px 0 6px 8px; font-size: 14px; font-weight: 600; }
 button:focus-visible { outline: 3px solid #9b731f; outline-offset: 4px; border-radius: 6px; }
 button:disabled { opacity: .6; cursor: wait; }
-.switch-track { width: 42px; height: 25px; display: inline-block; position: relative; border-radius: 999px; background: #d2d6d0; }
+.switch-track { width: 42px; height: 25px; display: inline-block; position: relative; border-radius: 999px; background: #8a918a; }
 .switch-track::after { content: ""; width: 19px; height: 19px; position: absolute; top: 3px; left: 3px;
   border-radius: 50%; background: white; }
 [aria-checked="true"] .switch-track { background: #9b731f; }
@@ -67,10 +67,10 @@ input[type="checkbox"] { accent-color: #9b731f; width: 17px; height: 17px; }
 .time-fields { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .time-fields label { display: grid; gap: 7px; font-size: 12px; color: #69716a; }
 input[type="time"] { font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; background: #fff;
-  border: 1px solid #ccd1c5; border-radius: 7px; padding: 9px 12px; color: #272b28; min-height: 42px; }
+  border: 1px solid #8a9086; border-radius: 7px; padding: 9px 12px; color: #272b28; min-height: 42px; }
 input:disabled { opacity: .55; }
 input:focus-visible { outline: 2px solid #9b731f; outline-offset: 2px; }
-#save-timing { background: #9b731f; color: #fff; border: 1px solid #9b731f; border-radius: 7px;
+#save-timing { background: #8a6619; color: #fff; border: 1px solid #8a6619; border-radius: 7px;
   padding: 10px 16px; min-height: 42px; font-size: 13px; font-weight: 600; }
 #timing-message { font-size: 12px; color: #69716a; margin-top: 12px; min-height: 16px; }
 .error { color: #a32925; font-size: 12px; line-height: 1.5; margin-top: 8px; }
