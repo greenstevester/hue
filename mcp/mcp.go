@@ -300,7 +300,7 @@ func HandleListScenes(hueClient *client.Client) server.ToolHandlerFunc {
 		var result strings.Builder
 		result.WriteString(fmt.Sprintf("Found %d scenes:\n", len(scenes)))
 		for _, scene := range scenes {
-			result.WriteString(fmt.Sprintf("- %s: %s (ID: %s)\n", scene.Metadata.Name, scene.ID, scene.IDV1))
+			result.WriteString(fmt.Sprintf("- %s (ID: %s, v1: %s)\n", scene.Metadata.Name, scene.ID, scene.IDV1))
 		}
 
 		return mcp.NewToolResultText(result.String()), nil
