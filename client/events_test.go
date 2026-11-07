@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -198,5 +199,62 @@ func TestFilterEventsDropsOtherResourceTypes(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("light update filtered out")
+	}
+}
+
+// collect drains what processEvent delivered and reports whether it raised a problem.
+func collect(t *testing.T, batch string) ([]Event, bool) {
+	t.Helper()
+	stream := &EventStream{events: make(chan Event, 10), errors: make(chan error, 10)}
+	stream.processEvent(batch)
+	close(stream.events)
+	var events []Event
+	for event := range stream.events {
+		events = append(events, event)
+	}
+	return events, len(stream.errors) > 0
+}
+
+func TestStatusArrivesAsTextOrAsSceneObject(t *testing.T) {
+	events, problem := collect(t, `[{"type":"update","data":[
+		{"id":"zc","type":"zigbee_connectivity","status":"connected"},
+		{"id":"ent","type":"entertainment_configuration","status":"active"},
+		{"id":"sc","type":"scene","status":{"active":"static"}},
+		{"id":"k","type":"light","dimming":{"brightness":42}}]}]`)
+	if problem || len(events) != 1 || len(events[0].Data) != 4 {
+		t.Fatalf("problem=%v events=%+v", problem, events)
+	}
+	data := events[0].Data
+	if data[0].Status.Value != "connected" || data[1].Status.Value != "active" || data[2].Status.Active != "static" {
+		t.Fatalf("statuses decoded as %+v %+v %+v", data[0].Status, data[1].Status, data[2].Status)
+	}
+	if data[3].Dimming == nil || data[3].Dimming.Brightness != 42 {
+		t.Fatalf("light change lost: %+v", data[3])
+	}
+}
+
+func TestUnexpectedFieldShapeLosesOnlyThatItem(t *testing.T) {
+	events, problem := collect(t, `[
+		{"type":"update","data":[{"id":"odd","type":"future_thing","on":"sometimes"},
+			{"id":"k","type":"light","dimming":{"brightness":42}}]},
+		{"type":"update","data":[{"id":"b","type":"light","on":{"on":false}}]}]`)
+	if !problem {
+		t.Fatal("unreadable item was dropped silently")
+	}
+	if len(events) != 2 || len(events[0].Data) != 1 || events[0].Data[0].ID != "k" || events[1].Data[0].ID != "b" {
+		t.Fatalf("light changes lost alongside the unreadable item: %+v", events)
+	}
+}
+
+func TestStatusIsWrittenBackInTheShapeItArrivedIn(t *testing.T) {
+	for _, raw := range []string{`"connected"`, `{"active":"static"}`} {
+		var status EventStatus
+		if err := json.Unmarshal([]byte(raw), &status); err != nil {
+			t.Fatal(err)
+		}
+		out, err := json.Marshal(status)
+		if err != nil || string(out) != raw {
+			t.Fatalf("%s came back as %s (%v)", raw, out, err)
+		}
 	}
 }

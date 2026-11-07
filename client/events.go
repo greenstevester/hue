@@ -60,10 +60,8 @@ type EventData struct {
 	// Button events
 	Button *ButtonReport `json:"button,omitempty"`
 
-	// Scene events
-	Status *struct {
-		Active string `json:"active"`
-	} `json:"status,omitempty"`
+	// Scene, entertainment and connectivity events
+	Status *EventStatus `json:"status,omitempty"`
 
 	// Group events
 	Alert *Alert `json:"alert,omitempty"`
@@ -167,19 +165,80 @@ func (es *EventStream) streamEvents(ctx context.Context) error {
 	return scanner.Err()
 }
 
+// EventStatus is a resource's status. Scenes send an object such as {"active": "static"};
+// entertainment areas and Zigbee connectivity send text such as "active" or "connected".
+type EventStatus struct {
+	Active string // a scene's state: inactive, static or dynamic_palette
+	Value  string // the status of any resource that sends it as text
+}
+
+func (s *EventStatus) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &s.Value)
+	}
+	var scene struct {
+		Active string `json:"active"`
+	}
+	if err := json.Unmarshal(data, &scene); err != nil {
+		return err
+	}
+	s.Active = scene.Active
+	return nil
+}
+
+// MarshalJSON writes the status back in the shape it arrived in.
+func (s EventStatus) MarshalJSON() ([]byte, error) {
+	if s.Value != "" {
+		return json.Marshal(s.Value)
+	}
+	return json.Marshal(map[string]string{"active": s.Active})
+}
+
 func (es *EventStream) processEvent(data string) {
-	var events []Event
-	if err := json.Unmarshal([]byte(data), &events); err != nil {
+	var batch []json.RawMessage
+	if err := json.Unmarshal([]byte(data), &batch); err != nil {
 		es.report(fmt.Errorf("parse event: %w", err))
 		return
 	}
-	for _, event := range events {
+	for _, raw := range batch {
+		event, err := decodeEvent(raw)
+		if err != nil {
+			es.report(fmt.Errorf("parse event: %w", err))
+			if len(event.Data) == 0 {
+				continue // nothing readable survived
+			}
+		}
 		select {
 		case es.events <- event:
 		default:
 			es.report(fmt.Errorf("event buffer overflow; refresh Bridge state"))
 		}
 	}
+}
+
+// decodeEvent keeps every data item it can read. A resource whose fields arrive in an unexpected
+// shape is dropped and reported on its own, so it cannot hide light changes in the same event.
+func decodeEvent(raw json.RawMessage) (Event, error) {
+	var envelope struct {
+		CreationTime string            `json:"creationtime"`
+		ID           string            `json:"id"`
+		Type         string            `json:"type"`
+		Data         []json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return Event{}, err
+	}
+	event := Event{CreationTime: envelope.CreationTime, ID: envelope.ID, Type: envelope.Type}
+	var problem error
+	for _, item := range envelope.Data {
+		var data EventData
+		if err := json.Unmarshal(item, &data); err != nil {
+			problem = fmt.Errorf("%s: %w", item, err)
+			continue
+		}
+		event.Data = append(event.Data, data)
+	}
+	return event, problem
 }
 
 // FilterEvents selects events by resource type, such as light or button.
