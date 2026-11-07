@@ -57,3 +57,15 @@ func TestCreateSceneToolCapturesTheGroupsRoom(t *testing.T) {
 		t.Fatalf("scene sent: %v", *posted)
 	}
 }
+
+func TestListScenesLabelsTheCurrentID(t *testing.T) {
+	c, _ := sceneBridge(t)
+	result, err := HandleListScenes(c)(context.Background(), mcp.CallToolRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !strings.Contains(text, "Relax (ID: 5f1c0de4-0000-4000-8000-000000000001, v1: /scenes/AbC)") {
+		t.Fatalf("scene list: %s", text)
+	}
+}
