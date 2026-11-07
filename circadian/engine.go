@@ -484,7 +484,9 @@ func (e *Engine) Tick(ctx context.Context) error {
 	if update.On == nil || update.On.On {
 		update.Dynamics = &client.Dynamics{Duration: 10000}
 	}
-	writeCtx, cancel := context.WithTimeout(context.WithValue(ctx, automationKey{}, p), 5*time.Second)
+	// Exclusive, so a manual write that arrives meanwhile is sent after this one and wins.
+	writeCtx, cancel := context.WithTimeout(
+		client.WithExclusiveWrite(context.WithValue(ctx, automationKey{}, p)), 5*time.Second)
 	defer cancel()
 	err := e.bridge.UpdateLight(writeCtx, id, update)
 	e.mu.Lock()
