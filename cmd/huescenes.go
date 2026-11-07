@@ -65,13 +65,13 @@ var listHueScenesCmd = &cobra.Command{
 			if scene.Group.RType == "room" || scene.Group.RType == "zone" {
 				roomName = roomIDToName[scene.Group.RID]
 			}
-			
+
 			if roomName != "" {
 				fmt.Printf("📋 %s (%s)\n", scene.Metadata.Name, roomName)
 			} else {
 				fmt.Printf("📋 %s\n", scene.Metadata.Name)
 			}
-			
+
 			// Optional: show IDs
 			if showIDs {
 				fmt.Printf("   ID: %s\n", scene.ID)
@@ -79,20 +79,20 @@ var listHueScenesCmd = &cobra.Command{
 					fmt.Printf("   V1 ID: %s\n", scene.IDV1)
 				}
 			}
-			
+
 			// Optional: show group ID
 			if showGroups && scene.Group.RID != "" {
 				fmt.Printf("   Group ID: %s\n", scene.Group.RID)
 			}
-			
+
 			// Optional: show action count
 			if showActions {
 				fmt.Printf("   Actions: %d\n", len(scene.Actions))
 			}
-			
+
 			fmt.Println()
 		}
-		
+
 		return nil
 	},
 }
@@ -105,18 +105,18 @@ var activateHueSceneCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve scene name to ID
 		sceneID, err := resolveSceneID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.ActivateScene(ctx, sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to activate scene: %w", err)
 		}
-		
+
 		printMessage("Scene %s activated", args[0])
 		return nil
 	},
@@ -156,7 +156,7 @@ var findHueSceneCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		searchTerm := strings.ToLower(args[0])
 		ctx := context.Background()
-		
+
 		scenes, err := hueClient.GetScenes(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to list scenes: %w", err)
@@ -165,7 +165,7 @@ var findHueSceneCmd = &cobra.Command{
 		// Filter scenes by name
 		matchCount := 0
 		fmt.Printf("Scenes matching '%s':\n\n", searchTerm)
-		
+
 		for _, scene := range scenes {
 			if strings.Contains(strings.ToLower(scene.Metadata.Name), searchTerm) {
 				fmt.Printf("- %s (ID: %s)\n", scene.Metadata.Name, scene.ID)
@@ -177,7 +177,7 @@ var findHueSceneCmd = &cobra.Command{
 			fmt.Printf("No scenes found matching '%s'\n", searchTerm)
 			return nil
 		}
-		
+
 		return nil
 	},
 }
@@ -187,13 +187,13 @@ func init() {
 	listHueScenesCmd.Flags().BoolVar(&showIDs, "show-ids", false, "Show scene IDs")
 	listHueScenesCmd.Flags().BoolVar(&showActions, "show-actions", false, "Show action counts")
 	listHueScenesCmd.Flags().BoolVar(&showGroups, "show-groups", false, "Show group IDs")
-	
+
 	// Add subcommands
 	hueScenesCmd.AddCommand(listHueScenesCmd)
 	hueScenesCmd.AddCommand(activateHueSceneCmd)
 	hueScenesCmd.AddCommand(createHueSceneCmd)
 	hueScenesCmd.AddCommand(findHueSceneCmd)
-	
+
 	// Add to root
 	rootCmd.AddCommand(hueScenesCmd)
 }

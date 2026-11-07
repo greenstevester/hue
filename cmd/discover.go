@@ -17,10 +17,10 @@ type DiscoveredBridge struct {
 
 // BridgeInfo represents additional bridge information
 type BridgeInfo struct {
-	Bridge    DiscoveredBridge
-	Reachable bool
-	Name      string
-	APIVersion string
+	Bridge          DiscoveredBridge
+	Reachable       bool
+	Name            string
+	APIVersion      string
 	SoftwareVersion string
 }
 
@@ -35,7 +35,7 @@ This will find all bridges registered to your network and test their connectivit
 
 func runDiscover(cmd *cobra.Command, args []string) error {
 	fmt.Println("🔍 Discovering Hue bridges...")
-	
+
 	// Discover bridges using official API
 	bridges, err := discoverBridges()
 	if err != nil {
@@ -64,12 +64,12 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 
 	// Test connectivity and get additional info for each bridge
 	fmt.Printf("\nFound %d Hue bridge(s):\n\n", len(bridges))
-	
+
 	for i, bridge := range bridges {
 		fmt.Printf("🌉 Bridge %d\n", i+1)
 		fmt.Printf("   ID: %s\n", bridge.ID)
 		fmt.Printf("   IP Address: %s\n", bridge.InternalIPAddress)
-		
+
 		// Test connectivity
 		info := testBridgeConnectivity(bridge)
 		if info.Reachable {
@@ -83,7 +83,7 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Printf("   Status: ❌ Not reachable\n")
 		}
-		
+
 		fmt.Println()
 	}
 
@@ -103,18 +103,18 @@ func discoverBridges() ([]DiscoveredBridge, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
-	
+
 	// Retry with exponential backoff for rate limits
 	maxRetries := 3
 	baseDelay := 2 * time.Second
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			delay := time.Duration(attempt) * baseDelay
 			fmt.Printf("Rate limited, retrying in %v...\n", delay)
 			time.Sleep(delay)
 		}
-		
+
 		resp, err := client.Get("https://discovery.meethue.com/")
 		if err != nil {
 			if attempt == maxRetries-1 {
@@ -143,7 +143,7 @@ func discoverBridges() ([]DiscoveredBridge, error) {
 
 		return bridges, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to discover bridges after %d attempts", maxRetries)
 }
 
@@ -172,9 +172,9 @@ func testBridgeConnectivity(bridge DiscoveredBridge) BridgeInfo {
 
 	// Parse basic bridge info
 	var config struct {
-		Name           string `json:"name"`
+		Name            string `json:"name"`
 		SoftwareVersion string `json:"swversion"`
-		APIVersion     string `json:"apiversion"`
+		APIVersion      string `json:"apiversion"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&config); err == nil {
