@@ -8,108 +8,112 @@ import (
 
 // Scene CRUD operations
 
-// CreateSceneFromCurrentState creates a new scene capturing current light states
-func (c *Client) CreateSceneFromCurrentState(ctx context.Context, name string, roomID string) (*Scene, error) {
-	// Get the room to find all lights
-	rooms, err := c.GetRooms(ctx)
+// CreateSceneFromCurrentState creates a scene that captures the current state of every light in a
+// room or zone. groupID may be a room or zone ID, or the ID of a group (grouped_light) that one owns.
+func (c *Client) CreateSceneFromCurrentState(ctx context.Context, name string, groupID string) (*Scene, error) {
+	group, lightIDs, err := c.sceneGroup(ctx, groupID, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get rooms: %w", err)
+		return nil, err
 	}
-	
-	var targetRoom *Room
-	for _, r := range rooms {
-		if r.ID == roomID {
-			targetRoom = &r
-			break
-		}
-	}
-	
-	if targetRoom == nil {
-		return nil, fmt.Errorf("room %s not found", roomID)
-	}
-	
-	// Get all lights in the room
-	var lightIDs []string
-	devices, err := c.GetDevices(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get devices: %w", err)
-	}
-	
-	// Find all light IDs from devices in this room
-	for _, child := range targetRoom.Children {
-		if child.RType == "device" {
-			// Find this device and its lights
-			for _, device := range devices {
-				if device.ID == child.RID {
-					for _, svc := range device.Services {
-						if svc.RType == "light" {
-							lightIDs = append(lightIDs, svc.RID)
-						}
-					}
-				}
-			}
-		}
-	}
-	
+
 	// Get current state of each light
 	var actions []SceneAction
 	for _, lightID := range lightIDs {
 		light, err := c.GetLight(ctx, lightID)
 		if err != nil {
-			continue // Skip if we can't get the light
+			// A scene quietly missing a light is worse than no scene.
+			return nil, fmt.Errorf("read light %s in %s %s: %w", lightID, group.RType, group.RID, err)
 		}
-		
 		action := SceneAction{
-			Target: ResourceIdentifier{
-				RID:   lightID,
-				RType: "light",
-			},
-			Action: LightUpdate{
-				On: &OnState{
-					On: light.On.On,
-				},
-			},
+			Target: ResourceIdentifier{RID: lightID, RType: "light"},
+			Action: LightUpdate{On: &OnState{On: light.On.On}},
 		}
-		
-		// Add dimming if light is on
 		if light.On.On && light.Dimming.Brightness > 0 {
-			action.Action.Dimming = &Dimming{
-				Brightness: light.Dimming.Brightness,
-			}
+			action.Action.Dimming = &Dimming{Brightness: light.Dimming.Brightness}
 		}
-		
-		// Add color if available
-		if light.Color != nil {
-			action.Action.Color = &Color{
-				XY: light.Color.XY,
-			}
-		}
-		
-		// Add color temperature if available
+		// A light reports both colour values; send only the one for the mode it is in.
 		if light.ColorTemperature != nil && light.ColorTemperature.MirekValid {
-			action.Action.ColorTemperature = &ColorTemperature{
-				Mirek: light.ColorTemperature.Mirek,
-			}
+			action.Action.ColorTemperature = &ColorTemperature{Mirek: light.ColorTemperature.Mirek}
+		} else if light.Color != nil {
+			action.Action.Color = &Color{XY: light.Color.XY}
 		}
-		
 		actions = append(actions, action)
 	}
-	
-	// Create the scene
-	sceneCreate := SceneCreate{
-		Type: "scene",
-		Metadata: Metadata{
-			Name: name,
-		},
-		Group: ResourceIdentifier{
-			RID:   roomID,
-			RType: "room",
-		},
-		Actions: actions,
-		Speed:   0.5, // Default transition speed
+	if len(actions) == 0 {
+		return nil, fmt.Errorf("%s %s has no lights to capture", group.RType, group.RID)
 	}
-	
-	return c.CreateScene(ctx, sceneCreate)
+
+	return c.CreateScene(ctx, SceneCreate{
+		Type:     "scene",
+		Metadata: Metadata{Name: name},
+		Group:    group,
+		Actions:  actions,
+		Speed:    0.5, // Default transition speed
+	})
+}
+
+// sceneGroup finds the room or zone a scene belongs to and the lights in it. Scenes cannot belong to
+// a group (grouped_light), so a group ID is followed to the room or zone that owns it.
+func (c *Client) sceneGroup(ctx context.Context, id string, followOwner bool) (ResourceIdentifier, []string, error) {
+	var group ResourceIdentifier
+	var children []ResourceIdentifier
+	rooms, err := c.GetRooms(ctx)
+	if err != nil {
+		return group, nil, fmt.Errorf("failed to get rooms: %w", err)
+	}
+	for _, room := range rooms {
+		if room.ID == id {
+			group, children = ResourceIdentifier{RID: id, RType: "room"}, room.Children
+		}
+	}
+	if group.RID == "" {
+		zones, err := c.GetZones(ctx)
+		if err != nil {
+			return group, nil, fmt.Errorf("failed to get zones: %w", err)
+		}
+		for _, zone := range zones {
+			if zone.ID == id {
+				group, children = ResourceIdentifier{RID: id, RType: "zone"}, zone.Children
+			}
+		}
+	}
+	if group.RID == "" {
+		if !followOwner {
+			return group, nil, fmt.Errorf("no room or zone with ID %s", id)
+		}
+		owned, err := c.GetGroup(ctx, id)
+		if err != nil {
+			return group, nil, fmt.Errorf("no room, zone or group with ID %s: %w", id, err)
+		}
+		if owned.Owner == nil || (owned.Owner.RType != "room" && owned.Owner.RType != "zone") {
+			return group, nil, fmt.Errorf("group %s does not belong to a room or zone", id)
+		}
+		return c.sceneGroup(ctx, owned.Owner.RID, false)
+	}
+
+	devices, err := c.GetDevices(ctx)
+	if err != nil {
+		return group, nil, fmt.Errorf("failed to get devices: %w", err)
+	}
+	var lightIDs []string
+	for _, child := range children {
+		if child.RType == "light" {
+			lightIDs = append(lightIDs, child.RID)
+		}
+		if child.RType == "device" {
+			for _, device := range devices {
+				if device.ID != child.RID {
+					continue
+				}
+				for _, service := range device.Services {
+					if service.RType == "light" {
+						lightIDs = append(lightIDs, service.RID)
+					}
+				}
+			}
+		}
+	}
+	return group, lightIDs, nil
 }
 
 // DeleteScene deletes a scene

@@ -339,20 +339,8 @@ func HandleCreateScene(hueClient *client.Client) server.ToolHandlerFunc {
 			return mcp.NewToolResultError("group_id is required"), nil
 		}
 
-		// Create scene
-		sceneCreate := client.SceneCreate{
-			Type: "scene",
-			Metadata: client.Metadata{
-				Name: name,
-			},
-			Group: client.ResourceIdentifier{
-				RID:   groupID,
-				RType: "grouped_light",
-			},
-			Actions: []client.SceneAction{}, // Would need to capture current states
-		}
-
-		scene, err := hueClient.CreateScene(ctx, sceneCreate)
+		// Capture the current light states of the group's room or zone
+		scene, err := hueClient.CreateSceneFromCurrentState(ctx, name, groupID)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create scene: %v", err)), nil
 		}

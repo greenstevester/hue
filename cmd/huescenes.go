@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/kungfusheep/hue/client"
 )
 
 // hueScenesCmd represents the native Hue scenes command group
@@ -131,33 +130,19 @@ var createHueSceneCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 		ctx := context.Background()
-		
+
 		// Resolve group name to ID
 		groupID, err := resolveGroupID(ctx, args[1])
 		if err != nil {
 			return err
 		}
-		
-		// Note: This creates an empty scene. In practice, you'd want to
-		// capture current light states or specify actions
-		sceneCreate := client.SceneCreate{
-			Type: "scene",
-			Metadata: client.Metadata{
-				Name: name,
-			},
-			Group: client.ResourceIdentifier{
-				RID:   groupID,
-				RType: "grouped_light",
-			},
-			Actions: []client.SceneAction{}, // Empty for now
-		}
-		
-		scene, err := hueClient.CreateScene(ctx, sceneCreate)
-		
+
+		// Capture the current light states of the group's room
+		scene, err := hueClient.CreateSceneFromCurrentState(ctx, name, groupID)
 		if err != nil {
 			return fmt.Errorf("failed to create scene: %w", err)
 		}
-		
+
 		printMessage("Scene '%s' created with ID: %s", name, scene.ID)
 		return nil
 	},
