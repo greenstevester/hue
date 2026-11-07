@@ -656,11 +656,12 @@ func run(
 			if !ok {
 				return errors.New("event stream closed")
 			}
-			if event.Type == "add" || event.Type == "delete" {
-				e.invalidateInventory()
-				logf("circadian paused: Bridge resources changed; restart to rediscover rooms")
-			}
 			for _, d := range event.Data {
+				// Scenes, zones and automations come and go without changing which lights are managed.
+				if (event.Type == "add" || event.Type == "delete") && d.Type == "light" {
+					e.invalidateInventory()
+					logf("circadian paused: a light was added or removed; restart to rediscover rooms")
+				}
 				if d.Type == "room" || d.Type == "device" {
 					e.invalidateInventory()
 					logf("circadian paused: room membership or device changed; rediscover before resuming")
