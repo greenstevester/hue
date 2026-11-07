@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/kungfusheep/hue/client"
@@ -20,15 +19,10 @@ func Start(
 		return nil, nil, nil, err
 	}
 	lockPath := filepath.Join(os.TempDir(), fmt.Sprintf("hue-circadian-%x.lock", c.BridgeAddress()))
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	release, err := acquireOwnerLock(lockPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		lock.Close()
-		return nil, nil, nil, fmt.Errorf("another local circadian owner is running: %w", err)
-	}
-	release := func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN); _ = lock.Close() }
 	ctx, cancel := context.WithCancel(parent)
 	requestCtx, requestCancel := context.WithTimeout(ctx, 30*time.Second)
 	rooms, err := c.GetRooms(requestCtx)
