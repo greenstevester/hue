@@ -131,8 +131,8 @@ hue groups color "Kitchen" warm
 hue groups rooms  # List all rooms
 
 # Effects
-./hue effects flash "Kitchen-Island" --color red --count 3
-./hue effects pulse "Kitchen-Island" --min 10 --max 90
+./hue effects flash "Office Lamp" --color red --count 3
+./hue effects pulse "Office Lamp" --min 10 --max 90
 hue effects stop <sequence-id>
 
 # Native Hue scenes
@@ -333,11 +333,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 Apache 2.0 Licence
-
-export HUE_BRIDGE_IP="10.0.0.101"
-export HUE_USERNAME="your-bridge-application-key"
-hue lights list
-
-./hue effects flash Kitchen-Island --color red --count 3
-
-./hue effects pulse "Kitchen-Island" --min 10 --max 90

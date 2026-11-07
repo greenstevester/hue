@@ -25,9 +25,6 @@ go test ./...
 # Run tests with coverage
 go test -cover ./...
 
-# Run comprehensive test suite (requires configured Hue bridge)
-go run test_comprehensive.go
-
 # Test specific package
 go test ./client/...
 go test ./mcp/...
@@ -81,6 +78,16 @@ export HUE_USERNAME="your-api-username"
 
 5. **Effects Package (`effects/`)** - Native Hue effect definitions
    - Defines all supported native effects (candle, fire, sparkle, etc.)
+
+6. **Circadian Package (`circadian/`)** - Adaptive lighting for Kitchen and Bedroom only; see CIRCADIAN.md
+   - `engine.go` - Follows Bridge events, holds a light after a manual change, sends at most one update per second
+   - `schedule.go` - Daily phases from wake time, sunrise, sunset and bedtime
+   - `config.go` - Loads and validates the JSON configuration
+   - `session.go` - Discovers both rooms, takes the one-controller-per-Bridge lock, starts paused
+
+7. **Web Package (`webui/`)** - Dashboard served by `hue circadian serve`
+   - `server.go` - Status and settings requests; saves changes back to the configuration file
+   - `assets/` - Page, styles and script, embedded in the binary
 
 ### Key Design Patterns
 

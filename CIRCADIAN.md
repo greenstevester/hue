@@ -52,6 +52,10 @@ without that flag starts paused, so restarting cannot silently erase a manual de
 Control-C or TERM. The computer must stay awake. A local lock prevents a second owner for the same
 Bridge address; do not run an owner on another computer at the same time.
 
+Resuming clears every manual hold, so lights you changed by hand return to the schedule within
+seconds. That applies to USR1, `run --resume` and the circadian_resume tool. The web page's switch
+keeps manual holds. Windows has no USR1 or USR2; use the web page or the agent tools there.
+
 To run inside the existing agent-facing server, set HUE_CIRCADIAN_CONFIG to the configuration path
 before launching it. The tools circadian_status, circadian_pause, and circadian_resume control that
 process's engine. It starts paused. A separate command process cannot resume this server's engine.
@@ -76,9 +80,15 @@ changes and leaves its current power and brightness unchanged. The light remains
 The timing form lets you choose sunrise or a fixed wake time and change bedtime. These choices and
 the individual scheduling switches are saved across restarts.
 
+The page saves every change into the configuration file it was started with. To try it locally, copy
+the Zurich configuration first so the tracked file stays unchanged:
+
 ```sh
-go run . circadian serve --config config/circadian-zurich.json --resume
+cp config/circadian-zurich.json config/circadian-zurich.local.json
+go run . circadian serve --config config/circadian-zurich.local.json --resume
 ```
+
+Git ignores files ending in `.local.json`.
 
 Open http://127.0.0.1:8088. To make it available on your home network, add
 `--listen 0.0.0.0:8088` and use the controller computer's address. The same process runs the scheduler

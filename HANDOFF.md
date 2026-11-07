@@ -71,6 +71,8 @@ launchctl kill SIGUSR2 "gui/$(id -u)/local.hue.circadian"
 launchctl kill SIGUSR1 "gui/$(id -u)/local.hue.circadian"
 ```
 
+Resuming with SIGUSR1 clears every manual hold. The web page's switch keeps them.
+
 ## Verification commands
 
 ```sh
