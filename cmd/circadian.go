@@ -123,26 +123,30 @@ func newCircadianCommand() *cobra.Command {
 		if resume {
 			engine.Resume()
 		}
-		log.Printf("circadian paused=%t; send USR1 to resume or USR2 to pause", !resume)
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, syscall.SIGUSR1, syscall.SIGUSR2)
-		defer signal.Stop(signals)
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case sig := <-signals:
-					if sig == syscall.SIGUSR1 {
-						engine.Resume()
-						log.Print("circadian resumed")
-					} else {
-						engine.Pause()
-						log.Print("circadian paused")
+		if resumeSignal == nil {
+			log.Printf("circadian paused=%t", !resume)
+		} else {
+			log.Printf("circadian paused=%t; send USR1 to resume or USR2 to pause", !resume)
+			signals := make(chan os.Signal, 1)
+			signal.Notify(signals, resumeSignal, pauseSignal)
+			defer signal.Stop(signals)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case sig := <-signals:
+						if sig == resumeSignal {
+							engine.Resume()
+							log.Print("circadian resumed")
+						} else {
+							engine.Pause()
+							log.Print("circadian paused")
+						}
 					}
 				}
-			}
-		}()
+			}()
+		}
 		select {
 		case err := <-done:
 			return err
