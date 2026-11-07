@@ -163,3 +163,45 @@ func TestListingSequencesDoesNotWaitWhileLightsAreBeingClaimed(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSequenceReleasesLightsOnlyAfterItsCommandsReachTheBridge(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	record := func(step string) { mu.Lock(); order = append(order, step); mu.Unlock() }
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		record("bridge " + r.Method + " " + strings.TrimPrefix(r.URL.Path, "/clip/v2/resource/"))
+		fmt.Fprint(w, `{"errors":[],"data":[]}`)
+	}))
+	defer server.Close()
+	c := client.NewClient(strings.TrimPrefix(server.URL, "https://"), "test", server.Client())
+	released := make(chan struct{})
+	c.SetWriteGuard(func(_ context.Context, _ string, data interface{}) error {
+		if a, ok := data.(client.Activity); ok {
+			if a.Active {
+				record("claim")
+			} else {
+				record("release")
+				close(released)
+			}
+		}
+		return nil
+	})
+	s := NewScheduler(c)
+	defer s.Stop()
+	if _, err := s.ExecuteSequence(&Sequence{Commands: []Command{
+		{Type: "light", Action: "on", Target: "k"},
+		{Type: "light", Action: "off", Target: "k", Delay: 20 * time.Millisecond},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-released:
+	case <-time.After(2 * time.Second):
+		t.Fatal("lights never released")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if got := strings.Join(order, ", "); got != "claim, bridge PUT light/k, bridge PUT light/k, release" {
+		t.Fatalf("order: %s", got)
+	}
+}

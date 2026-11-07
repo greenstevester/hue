@@ -65,3 +65,12 @@ func TestLightDecodingTracksFeaturesAndWritesOnlyWritableFields(t *testing.T) {
 		t.Fatal("absent features retained")
 	}
 }
+
+func TestClipXYProjectsOntoEdgeBetweenCorners(t *testing.T) {
+	gamut := &Gamut{Red: XY{X: .6, Y: .3}, Green: XY{X: .3, Y: .6}, Blue: XY{X: .15, Y: .1}}
+	// The nearest in-range colour lies halfway along the red-green edge, not at a corner.
+	got := ClipXY(XY{X: .5, Y: .5}, gamut)
+	if math.Abs(got.X-.45) > 1e-9 || math.Abs(got.Y-.45) > 1e-9 {
+		t.Fatalf("got %+v, want (0.45, 0.45)", got)
+	}
+}
