@@ -62,7 +62,10 @@ process's engine. It starts paused. A separate command process cannot resume thi
 
 The installed macOS login service is local.hue.circadian. It runs the Zurich configuration from
 ~/Library/Application Support/Hue Circadian/config.json and writes controller.log in that directory.
-It resumes automatically on login and retries after a process failure. Pause or resume it with:
+It resumes automatically on login and retries after a process failure. The live controller runs
+only as this login service, on the Mac at 10.0.0.129. Its page is http://10.0.0.129:8088/. Nothing
+from this project is deployed to the Raspberry Pi. The router assigns the Mac's address, so reserve
+it there to keep the link stable. Pause or resume it with:
 
 ```sh
 launchctl kill SIGUSR2 "gui/$(id -u)/local.hue.circadian"
