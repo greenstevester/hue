@@ -17,6 +17,7 @@ import (
 	mcpserver "github.com/kungfusheep/hue/mcp"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -34,23 +35,7 @@ func main() {
 		return
 	}
 
-	// Check for commands that don't need Hue client initialization
-	noClientCommands := []string{"discover", "help"}
-	for _, cmd := range noClientCommands {
-		if os.Args[1] == cmd {
-			runCLIWithoutClient()
-			return
-		}
-	}
-
-	// Check for global help flag
-	if len(os.Args) > 1 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
-		runCLIWithoutClient()
-		return
-	}
-
-	// Check for command-specific help (e.g., "lights --help")
-	if len(os.Args) > 2 && (os.Args[2] == "--help" || os.Args[2] == "-h") {
+	if runsWithoutBridge(os.Args[1:]) {
 		runCLIWithoutClient()
 		return
 	}
@@ -66,6 +51,18 @@ func main() {
 
 	// Otherwise run MCP server (for unknown commands)
 	runMCPServer()
+}
+
+// runsWithoutBridge reports commands that work without Bridge credentials: discovery, help, and
+// shell completion (both the generated script and the hidden command the shell calls on Tab).
+func runsWithoutBridge(args []string) bool {
+	switch args[0] {
+	case "discover", "help", "completion", "--help", "-h",
+		cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
+		return true
+	}
+	// Command-specific help, such as "lights --help".
+	return len(args) > 1 && (args[1] == "--help" || args[1] == "-h")
 }
 
 // runCLI initializes and runs the CLI interface

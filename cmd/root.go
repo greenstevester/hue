@@ -28,10 +28,9 @@ var rootCmd = &cobra.Command{
 Control lights, groups, scenes, and effects directly from your terminal.
 Perfect for scripting, testing, or quick light adjustments.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Skip client init for commands that don't need it or when client is nil
-		cmdName := cmd.Name()
-		if hueClient == nil || cmdName == "help" || cmdName == "discover" ||
-		   cmdName == "hue" || cmdName == "completion" {
+		// Skip client init for commands that don't need it. main.go sends completion and help
+		// here without a client, so they stop at the nil check.
+		if hueClient == nil || cmd.Name() == "help" || cmd.Name() == "discover" {
 			return
 		}
 
