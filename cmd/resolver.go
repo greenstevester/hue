@@ -224,7 +224,26 @@ func resolveSceneID(ctx context.Context, nameOrID string) (string, error) {
 			return "", fmt.Errorf("multiple scenes match %q in rooms containing %q:\n%s\nPlease be more specific",
 				sceneName, roomFilter, formatSceneMatches(roomFilterMatches))
 		}
-		// If no matches with room filter, continue to show all matches
+		// Never fall back to another room: activating the wrong room's scene is worse than an error.
+		var elsewhere []struct {
+			ID       string
+			Name     string
+			RoomName string
+		}
+		for _, scene := range scenes {
+			if strings.EqualFold(scene.Metadata.Name, sceneName) {
+				elsewhere = append(elsewhere, struct {
+					ID       string
+					Name     string
+					RoomName string
+				}{ID: scene.ID, Name: scene.Metadata.Name, RoomName: getRoomName(scene)})
+			}
+		}
+		if len(elsewhere) == 0 {
+			return "", fmt.Errorf("no scene named %q in a room containing %q", sceneName, roomFilter)
+		}
+		return "", fmt.Errorf("no scene named %q in a room containing %q; it exists in:\n%s",
+			sceneName, roomFilter, formatSceneMatches(elsewhere))
 	}
 
 	// Try exact match first (no room filter)
