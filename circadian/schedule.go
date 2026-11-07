@@ -21,6 +21,21 @@ type anchor struct {
 	phase string
 }
 
+type ScheduledPhase struct {
+	Phase string    `json:"phase"`
+	At    time.Time `json:"at"`
+}
+
+// ScheduleForDay lists the local calendar day's effective lighting boundaries.
+func ScheduleForDay(c Config, date time.Time) []ScheduledPhase {
+	location, _ := time.LoadLocation(c.Timezone)
+	var result []ScheduledPhase
+	for _, point := range dailyAnchors(c, date.In(location)) {
+		result = append(result, ScheduledPhase{Phase: point.phase, At: point.at})
+	}
+	return result
+}
+
 // wallTime selects the first occurrence of a repeated minute and the first valid
 // minute after a missing clock time on a daylight-saving day.
 func wallTime(date time.Time, clock string) time.Time {
@@ -37,18 +52,29 @@ func wallTime(date time.Time, clock string) time.Time {
 }
 
 func dailyAnchors(c Config, date time.Time) []anchor {
-	wake, bed := wallTime(date, c.WakeTime), wallTime(date, c.Bedtime)
-	if !bed.After(wake) {
-		bed = wallTime(date.AddDate(0, 0, 1), c.Bedtime)
-	}
-	rise, set := wallTime(date, c.FixedSunrise), wallTime(date, c.FixedSunset)
-	if !set.After(wake) {
-		set = wallTime(date.AddDate(0, 0, 1), c.FixedSunset)
-	}
+	rise := wallTime(date, c.FixedSunrise)
 	if c.Latitude != nil {
 		if value, ok := solarTime(date, *c.Latitude, *c.Longitude, true); ok {
 			rise = value
 		}
+	}
+	riseOffset, _ := time.ParseDuration(c.SunriseOffset)
+	rise = rise.Add(riseOffset)
+	var wake time.Time
+	if c.WakeTime == "sunrise" {
+		wake = rise
+	} else {
+		wake = wallTime(date, c.WakeTime)
+	}
+	bed := wallTime(date, c.Bedtime)
+	if !bed.After(wake) {
+		bed = wallTime(date.AddDate(0, 0, 1), c.Bedtime)
+	}
+	set := wallTime(date, c.FixedSunset)
+	if !set.After(wake) {
+		set = wallTime(date.AddDate(0, 0, 1), c.FixedSunset)
+	}
+	if c.Latitude != nil {
 		setDate := date
 		if set.Day() != date.Day() {
 			setDate = date.AddDate(0, 0, 1)
@@ -57,25 +83,28 @@ func dailyAnchors(c Config, date time.Time) []anchor {
 			set = value
 		}
 	}
-	riseOffset, _ := time.ParseDuration(c.SunriseOffset)
 	setOffset, _ := time.ParseDuration(c.SunsetOffset)
-	rise, set = rise.Add(riseOffset), set.Add(setOffset)
+	set = set.Add(setOffset)
+	interval := time.Hour
+	if available := bed.Sub(wake) / 6; available < interval {
+		interval = available
+	}
 	// Keep all six phases ordered inside the explicit waking interval, even in polar seasons.
-	if set.Before(wake.Add(4 * time.Hour)) {
-		set = wake.Add(4 * time.Hour)
+	if set.Before(wake.Add(4 * interval)) {
+		set = wake.Add(4 * interval)
 	}
-	if set.After(bed.Add(-2 * time.Hour)) {
-		set = bed.Add(-2 * time.Hour)
+	if set.After(bed.Add(-2 * interval)) {
+		set = bed.Add(-2 * interval)
 	}
-	day := wake.Add(time.Hour)
+	day := wake.Add(interval)
 	if rise.After(day) {
 		day = rise
 	}
-	if day.After(set.Add(-3 * time.Hour)) {
-		day = set.Add(-3 * time.Hour)
+	if day.After(set.Add(-3 * interval)) {
+		day = set.Add(-3 * interval)
 	}
-	return []anchor{{wake, "morning"}, {day, "daytime"}, {set.Add(-2 * time.Hour), "late_afternoon"},
-		{set, "sunset"}, {set.Add(time.Hour), "evening"}, {bed, "night"}}
+	return []anchor{{wake, "morning"}, {day, "daytime"}, {set.Add(-2 * interval), "late_afternoon"},
+		{set, "sunset"}, {set.Add(interval), "evening"}, {bed, "night"}}
 }
 
 // TargetAt calculates the daily curve without reading or writing the Bridge.

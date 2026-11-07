@@ -96,9 +96,17 @@ func TestSessionDiscoversOnlyApprovedRoomsStartsPausedAndReleasesOwnership(t *te
 	if len(writes) != 0 {
 		t.Fatalf("paused runner wrote %v", writes)
 	}
-	_, _, stopAgain, err := Start(context.Background(), c, config, func(string, ...interface{}) {})
+	config.Enabled = false
+	config.ExcludeLights = []string{"k", "b"}
+	disabled, _, stopAgain, err := Start(context.Background(), c, config, func(string, ...interface{}) {})
 	if err != nil {
 		t.Fatalf("ownership not released: %v", err)
+	}
+	if disabled.Status().Enabled {
+		t.Fatal("disabled web controller resumed on restart")
+	}
+	if lights := disabled.Status().Lights; len(lights) != 2 || lights[0].Enabled || lights[1].Enabled {
+		t.Fatal("excluded lights disappeared or resumed after restart")
 	}
 	stopAgain()
 }

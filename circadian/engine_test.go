@@ -282,3 +282,148 @@ func TestOwnWhiteUpdateMayIncludeDerivedChromaticity(t *testing.T) {
 		t.Fatal("derived white chromaticity created a hold")
 	}
 }
+
+func TestImmediateBridgeTargetAndIntermediateFadeDoNotCreateManualHold(t *testing.T) {
+	e, b, now := engineFixture(t)
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Real Bridge events can announce the target before reporting intermediate values.
+	for _, sample := range []struct {
+		seconds    int
+		brightness float64
+	}{
+		{0, b.writes[0].Dimming.Brightness}, {2, 55}, {4, 65}, {8, 78}, {12, 85},
+	} {
+		*now = instant(t, "2026-01-10T12:00:00+01:00").Add(time.Duration(sample.seconds) * time.Second)
+		e.Observe(client.EventData{ID: "k", Type: "light", Dimming: &client.Dimming{Brightness: sample.brightness}})
+		if !e.Status().Lights[0].HoldUntil.IsZero() {
+			t.Fatalf("own fade at %ds started a manual hold", sample.seconds)
+		}
+	}
+}
+
+func TestTemperatureFadeFromColourModeUsesAdvertisedRange(t *testing.T) {
+	e, b, now := engineFixture(t)
+	e.lights["k"].managed.Light.ColorTemperature.Mirek = 0
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(2 * time.Second)
+	e.Observe(client.EventData{ID: "k", Type: "light", ColorTemperature: &client.ColorTemperature{Mirek: 350}})
+	if !e.Status().Lights[0].HoldUntil.IsZero() {
+		t.Fatal("unknown starting white temperature caused a hold")
+	}
+	*now = now.Add(11 * time.Second)
+	e.Observe(client.EventData{ID: "k", Type: "light", ColorTemperature: b.writes[0].ColorTemperature})
+	if !e.Status().Lights[0].HoldUntil.IsZero() {
+		t.Fatal("final white temperature caused a hold")
+	}
+}
+
+func TestWhiteTargetReportedAsColourByThirdPartyBulbDoesNotCreateHold(t *testing.T) {
+	e, b, now := engineFixture(t)
+	s := e.lights["k"]
+	s.managed.Light.Color = &client.Color{XY: client.XY{X: .3227, Y: .329}}
+	s.managed.Light.ColorTemperature.Mirek = 0
+	profile := e.config.Profiles["daytime"]
+	profile.Brightness = 20
+	e.config.Profiles["daytime"] = profile
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(31 * time.Second)
+	snapshot := s.managed
+	snapshot.Light.Dimming.Brightness = 20.16
+	snapshot.Light.Color = &client.Color{XY: client.XY{X: .4081, Y: .3916}}
+	snapshot.Light.ColorTemperature = &client.ColorTemperature{MirekSchema: s.managed.Light.ColorTemperature.MirekSchema}
+	if err := e.reconcileInventory([]ManagedLight{snapshot}); err != nil {
+		t.Fatal(err)
+	}
+	if !e.Status().Lights[0].HoldUntil.IsZero() {
+		t.Fatal("third-party white chromaticity created a manual hold")
+	}
+	if b.writes[0].ColorTemperature == nil {
+		t.Fatal("test must exercise a white-temperature command")
+	}
+}
+
+func TestWebEnableDisablePreservesManualHoldsAndObservedState(t *testing.T) {
+	e, b, now := engineFixture(t)
+	e.Observe(client.EventData{ID: "k", Type: "light", Dimming: &client.Dimming{Brightness: 12}})
+	hold := e.Status().Lights[0].HoldUntil
+	if err := e.SetEnabled(false); err != nil {
+		t.Fatal(err)
+	}
+	if e.Status().Enabled {
+		t.Fatal("automation not disabled")
+	}
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 0 {
+		t.Fatal("disabling wrote to a light")
+	}
+	if err := e.SetEnabled(true); err != nil {
+		t.Fatal(err)
+	}
+	state := e.Status()
+	if !state.Enabled || !state.Lights[0].HoldUntil.Equal(hold) || state.Lights[0].Brightness != 12 {
+		t.Fatal("enabling lost observed state or manual priority")
+	}
+	*now = now.Add(2 * time.Hour)
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 1 {
+		t.Fatal("enabled schedule did not resume after manual hold")
+	}
+	e.invalidateInventory()
+	if err := e.SetEnabled(true); err == nil {
+		t.Fatal("invalid inventory was enabled")
+	}
+}
+
+func TestPerLightDisableStopsWritesAndRemainsVisible(t *testing.T) {
+	e, b, now := engineFixture(t)
+	if err := e.SetLightEnabled("k", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	state := e.Status()
+	if len(b.writes) != 0 || len(state.Lights) != 1 || state.Lights[0].Enabled || !state.Lights[0].On {
+		t.Fatal("excluded light changed state or disappeared")
+	}
+	if err := e.SetLightEnabled("office", true); err == nil {
+		t.Fatal("unmanaged light accepted")
+	}
+	if err := e.SetLightEnabled("k", true); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(time.Second)
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 1 {
+		t.Fatal("reenabled light did not follow schedule")
+	}
+}
+
+func TestTimingOverridesApplyWithoutClearingManualHold(t *testing.T) {
+	e, _, now := engineFixture(t)
+	*now = instant(t, "2026-01-10T07:40:00+01:00")
+	e.Observe(client.EventData{ID: "k", Type: "light", Dimming: &client.Dimming{Brightness: 12}})
+	hold := e.Status().Lights[0].HoldUntil
+	if err := e.SetSchedule("09:00", "23:00"); err != nil {
+		t.Fatal(err)
+	}
+	state := e.Status()
+	if state.Lights[0].Target.Phase != "night" || !state.Lights[0].HoldUntil.Equal(hold) {
+		t.Fatal("schedule override did not preserve manual priority")
+	}
+	if err := e.SetSchedule("invalid", "23:00"); err == nil {
+		t.Fatal("invalid time accepted")
+	}
+}

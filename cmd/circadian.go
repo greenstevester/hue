@@ -1,15 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/kungfusheep/hue/circadian"
+	"github.com/kungfusheep/hue/webui"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +38,9 @@ func newCircadianCommand() *cobra.Command {
 		}})
 	preview := &cobra.Command{Use: "preview", Short: "Show current room targets without changing lights"}
 	var at string
+	var showSchedule bool
 	preview.Flags().StringVar(&at, "at", "", "RFC3339 timestamp (default: now)")
+	preview.Flags().BoolVar(&showSchedule, "schedule", false, "Show the selected day's lighting times")
 	preview.RunE = func(_ *cobra.Command, _ []string) error {
 		c, err := load()
 		if err != nil {
@@ -46,6 +53,9 @@ func newCircadianCommand() *cobra.Command {
 				return err
 			}
 		}
+		if showSchedule {
+			return json.NewEncoder(os.Stdout).Encode(circadian.ScheduleForDay(c, now))
+		}
 		targets := map[string]circadian.Target{}
 		for _, room := range c.Rooms {
 			targets[room.Name] = circadian.TargetAt(c, now, room)
@@ -54,14 +64,20 @@ func newCircadianCommand() *cobra.Command {
 	}
 	command.AddCommand(preview)
 	var resume bool
-	run := &cobra.Command{Use: "run", Short: "Run until interrupted; starts paused unless --resume is supplied"}
+	var listen string
+	run := &cobra.Command{Use: "run", Aliases: []string{"serve"},
+		Short: "Run until interrupted; starts paused unless --resume is supplied"}
 	run.Flags().BoolVar(&resume, "resume", false, "Explicitly resume control on this start")
+	run.Flags().StringVar(&listen, "listen", "", "Web interface address (serve defaults to 127.0.0.1:8088)")
 	run.RunE = func(cmd *cobra.Command, _ []string) error {
+		if cmd.CalledAs() == "serve" && listen == "" {
+			listen = "127.0.0.1:8088"
+		}
 		c, err := load()
 		if err != nil {
 			return err
 		}
-		if !c.Enabled {
+		if !c.Enabled && listen == "" {
 			return fmt.Errorf("circadian control is disabled in configuration")
 		}
 		if hueClient == nil {
@@ -74,6 +90,36 @@ func newCircadianCommand() *cobra.Command {
 			return err
 		}
 		defer stop()
+		var webDone chan error
+		if listen != "" {
+			handler, err := webui.New(engine, c, path, time.Now)
+			if err != nil {
+				return err
+			}
+			listener, err := net.Listen("tcp", listen)
+			if err != nil {
+				return fmt.Errorf("start web interface: %w", err)
+			}
+			webServer := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second,
+				ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second,
+				MaxHeaderBytes: 8192}
+			webDone = make(chan error, 1)
+			go func() {
+				err := webServer.Serve(listener)
+				if errors.Is(err, http.ErrServerClosed) {
+					err = nil
+				}
+				webDone <- err
+			}()
+			defer func() {
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer shutdownCancel()
+				if err := webServer.Shutdown(shutdownCtx); err != nil {
+					log.Printf("stop web interface: %v", err)
+				}
+			}()
+			log.Printf("Web interface listening on %s", listener.Addr())
+		}
 		if resume {
 			engine.Resume()
 		}
@@ -97,7 +143,12 @@ func newCircadianCommand() *cobra.Command {
 				}
 			}
 		}()
-		return <-done
+		select {
+		case err := <-done:
+			return err
+		case err := <-webDone:
+			return err
+		}
 	}
 	command.AddCommand(run)
 	return command

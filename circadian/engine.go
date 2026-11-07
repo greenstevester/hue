@@ -52,16 +52,85 @@ type Engine struct {
 }
 
 type LightStatus struct {
-	ID        string    `json:"id"`
-	Room      string    `json:"room"`
-	HoldUntil time.Time `json:"hold_until"`
-	Target    Target    `json:"target"`
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Enabled    bool       `json:"enabled"`
+	Room       string     `json:"room"`
+	On         bool       `json:"on"`
+	Brightness float64    `json:"brightness"`
+	Mirek      int        `json:"mirek,omitempty"`
+	XY         *client.XY `json:"xy,omitempty"`
+	HoldUntil  time.Time  `json:"hold_until"`
+	Target     Target     `json:"target"`
 }
 
 type Status struct {
+	Enabled bool          `json:"enabled"`
 	Healthy bool          `json:"healthy"`
 	Paused  bool          `json:"paused"`
 	Lights  []LightStatus `json:"lights"`
+}
+
+// SetEnabled changes automation without changing a light's current state or manual hold.
+func (e *Engine) SetEnabled(enabled bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if enabled && e.invalidInventory {
+		return fmt.Errorf("room membership changed; restart to rediscover lights")
+	}
+	e.config.Enabled = enabled
+	e.paused = !enabled
+	for _, s := range e.lights {
+		s.revision++
+	}
+	return nil
+}
+
+// SetSchedule applies validated wake and bedtime overrides without clearing manual holds.
+func (e *Engine) SetSchedule(wake, bedtime string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	updated := e.config
+	updated.WakeTime, updated.Bedtime = wake, bedtime
+	if err := updated.Validate(); err != nil {
+		return err
+	}
+	e.config = updated
+	for _, s := range e.lights {
+		s.revision++
+	}
+	return nil
+}
+
+// SetLightEnabled excludes a managed light from automation while retaining its observation.
+func (e *Engine) SetLightEnabled(id string, enabled bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	s := e.lights[id]
+	if s == nil {
+		return fmt.Errorf("light is outside Kitchen and Bedroom")
+	}
+	var excluded []string
+	for _, candidate := range e.config.ExcludeLights {
+		if candidate != id {
+			excluded = append(excluded, candidate)
+		}
+	}
+	if !enabled {
+		excluded = append(excluded, id)
+	}
+	e.config.ExcludeLights = excluded
+	s.revision++
+	return nil
+}
+
+func (e *Engine) lightEnabled(id string) bool {
+	for _, excluded := range e.config.ExcludeLights {
+		if excluded == id {
+			return false
+		}
+	}
+	return true
 }
 
 func NewEngine(c Config, b Bridge, lights []ManagedLight, now func() time.Time) (*Engine, error) {
@@ -199,10 +268,20 @@ func (e *Engine) Guard(ctx context.Context, path string, data interface{}) error
 func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	status := Status{Healthy: e.healthy, Paused: e.paused}
+	status := Status{Healthy: e.healthy, Paused: e.paused, Enabled: e.config.Enabled && !e.paused}
 	for id, s := range e.lights {
-		status.Lights = append(status.Lights, LightStatus{
-			ID: id, Room: s.managed.Room.Name, HoldUntil: s.holdUntil, Target: TargetAt(e.config, e.now(), s.managed.Room)})
+		light := LightStatus{ID: id, Name: s.managed.Light.Metadata.Name,
+			Room: s.managed.Room.Name, Enabled: e.lightEnabled(id),
+			On: s.managed.Light.On.On, Brightness: s.managed.Light.Dimming.Brightness,
+			HoldUntil: s.holdUntil, Target: TargetAt(e.config, e.now(), s.managed.Room)}
+		if temperature := s.managed.Light.ColorTemperature; temperature != nil && temperature.MirekValid {
+			light.Mirek = temperature.Mirek
+		}
+		if color := s.managed.Light.Color; color != nil {
+			xy := color.XY
+			light.XY = &xy
+		}
+		status.Lights = append(status.Lights, light)
 	}
 	return status
 }
@@ -281,15 +360,15 @@ func (e *Engine) expected(s *lightState, d client.EventData) bool {
 	if !s.pending {
 		return false
 	}
-	u := math.Max(0, math.Min(1, e.now().Sub(s.sentAt).Seconds()/10))
+	elapsed := e.now().Sub(s.sentAt)
+	inTransition := elapsed >= 0 && elapsed <= 12*time.Second
 	closeValue := func(observed, start, end, tolerance float64) bool {
-		// Allow event batching and Bridge rounding while checking the transition trajectory.
-		expected := start + u*(end-start)
-		allowance := tolerance + math.Abs(end-start)*0.25
-		if u >= 1 {
-			allowance = tolerance
+		// The Bridge may announce its target immediately, then intermediate fade values.
+		if math.Abs(observed-end) <= tolerance {
+			return true
 		}
-		return math.Abs(observed-expected) <= allowance
+		return inTransition && observed >= math.Min(start, end)-tolerance &&
+			observed <= math.Max(start, end)+tolerance
 	}
 	if d.Effects != nil {
 		return false
@@ -303,15 +382,23 @@ func (e *Engine) expected(s *lightState, d client.EventData) bool {
 	}
 	whiteEcho := s.last.ColorTemperature != nil && d.ColorTemperature != nil
 	if d.Color != nil && !whiteEcho {
-		if s.last.Color == nil {
+		var end client.XY
+		tolerance := 0.005
+		if s.last.Color != nil {
+			end = s.last.Color.XY
+		} else if s.last.ColorTemperature != nil {
+			// Some third-party bulbs acknowledge a white command only as chromaticity.
+			end = targetXY(Target{Mirek: float64(s.last.ColorTemperature.Mirek)})
+			tolerance = 0.01
+		} else {
 			return false
 		}
-		start := s.last.Color.XY
+		start := end
 		if s.previous.Color != nil {
 			start = s.previous.Color.XY
 		}
-		if !closeValue(d.Color.XY.X, start.X, s.last.Color.XY.X, 0.005) ||
-			!closeValue(d.Color.XY.Y, start.Y, s.last.Color.XY.Y, 0.005) {
+		if !closeValue(d.Color.XY.X, start.X, end.X, tolerance) ||
+			!closeValue(d.Color.XY.Y, start.Y, end.Y, tolerance) {
 			return false
 		}
 	}
@@ -322,6 +409,13 @@ func (e *Engine) expected(s *lightState, d client.EventData) bool {
 		start := s.last.ColorTemperature.Mirek
 		if s.previous.ColorTemperature != nil {
 			start = s.previous.ColorTemperature.Mirek
+		}
+		if start <= 0 && inTransition && s.managed.Light.ColorTemperature != nil {
+			limits := s.managed.Light.ColorTemperature.MirekSchema
+			if limits != nil && d.ColorTemperature.Mirek >= limits.MirekMinimum &&
+				d.ColorTemperature.Mirek <= limits.MirekMaximum {
+				return true
+			}
 		}
 		if !closeValue(float64(d.ColorTemperature.Mirek), float64(start), float64(s.last.ColorTemperature.Mirek), 2) {
 			return false
@@ -413,7 +507,8 @@ func (e *Engine) Tick(ctx context.Context) error {
 }
 
 func (e *Engine) writeAllowed(id string, s *lightState) bool {
-	if !e.config.Enabled || e.paused || !e.healthy || e.invalidInventory || e.now().Before(e.retryAt) ||
+	if !e.config.Enabled || !e.lightEnabled(id) || e.paused || !e.healthy || e.invalidInventory ||
+		e.now().Before(e.retryAt) ||
 		(e.connection != nil && !e.connection()) || e.now().Before(s.holdUntil) ||
 		e.blocked[id] || e.activities[id] > 0 || s.managed.Light.Mode == "streaming" {
 		return false
@@ -519,7 +614,10 @@ func run(
 		if err != nil {
 			return err
 		}
-		managed, err := SelectLights(e.config, rooms, devices, lights)
+		e.mu.Lock()
+		configuration := e.config
+		e.mu.Unlock()
+		managed, err := RoomLights(configuration, rooms, devices, lights)
 		if err != nil {
 			e.invalidateInventory()
 			return err

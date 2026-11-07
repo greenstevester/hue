@@ -59,3 +59,17 @@ func TestLoadConfigUsesDefaultsAndRejectsTrailingOrUnknownFields(t *testing.T) {
 		t.Fatal("missing file accepted")
 	}
 }
+
+func TestSunriseWakeRequiresCoordinates(t *testing.T) {
+	c := DefaultConfig()
+	c.WakeTime = "sunrise"
+	if c.Validate() == nil {
+		t.Fatal("sunrise wake accepted without coordinates")
+	}
+	latitude, longitude := 47.3769, 8.5417
+	c.Latitude = &latitude
+	c.Longitude = &longitude
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -19,9 +19,6 @@ func Start(
 	if err := config.Validate(); err != nil {
 		return nil, nil, nil, err
 	}
-	if !config.Enabled {
-		return nil, nil, nil, fmt.Errorf("circadian control is disabled")
-	}
 	lockPath := filepath.Join(os.TempDir(), fmt.Sprintf("hue-circadian-%x.lock", c.BridgeAddress()))
 	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
@@ -55,7 +52,7 @@ func Start(
 		release()
 		return nil, nil, nil, err
 	}
-	managed, err := SelectLights(config, rooms, devices, lights)
+	managed, err := RoomLights(config, rooms, devices, lights)
 	if err != nil {
 		cancel()
 		release()

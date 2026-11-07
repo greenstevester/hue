@@ -110,3 +110,57 @@ func TestScheduleAnchorsStayOrderedAcrossSolarSeasons(t *testing.T) {
 		}
 	}
 }
+
+func TestSunriseWakeTracksLocalSunriseAndOffset(t *testing.T) {
+	c := DefaultConfig()
+	c.WakeTime = "sunrise"
+	latitude, longitude := 47.3769, 8.5417
+	c.Latitude = &latitude
+	c.Longitude = &longitude
+	location, _ := time.LoadLocation(c.Timezone)
+	for _, value := range []string{
+		"2026-03-28T12:00:00+01:00", "2026-03-29T12:00:00+02:00",
+		"2026-06-21T12:00:00+02:00", "2026-11-07T12:00:00+01:00", "2026-12-21T12:00:00+01:00",
+	} {
+		date := instant(t, value).In(location)
+		sunrise, ok := solarTime(date, latitude, longitude, true)
+		if !ok {
+			t.Fatal("missing Zurich sunrise")
+		}
+		anchors := dailyAnchors(c, date)
+		if !anchors[0].at.Equal(sunrise) {
+			t.Fatalf("wake %s differs from sunrise %s", anchors[0].at, sunrise)
+		}
+		before := TargetAt(c, sunrise.Add(-time.Second), c.Rooms[0])
+		after := TargetAt(c, sunrise.Add(time.Second), c.Rooms[0])
+		if before.Phase != "night" || after.Phase != "morning" {
+			t.Fatalf("sunrise boundary: %s -> %s", before.Phase, after.Phase)
+		}
+		c.SunriseOffset = "-15m"
+		shifted := dailyAnchors(c, date)
+		if !shifted[0].at.Equal(sunrise.Add(-15 * time.Minute)) {
+			t.Fatal("sunrise offset not applied to wake")
+		}
+		c.SunriseOffset = "0m"
+	}
+}
+
+func TestZurichNovemberSunriseMatchesPublishedTimes(t *testing.T) {
+	c := DefaultConfig()
+	c.WakeTime = "sunrise"
+	latitude, longitude := 47.3769, 8.5417
+	c.Latitude = &latitude
+	c.Longitude = &longitude
+	// Time and Date's Zurich November 2026 table, checked 2026-11-07.
+	for _, test := range []struct{ date, want string }{
+		{"2026-11-07T12:00:00+01:00", "2026-11-07T07:18:00+01:00"},
+		{"2026-11-08T12:00:00+01:00", "2026-11-08T07:19:00+01:00"},
+	} {
+		schedule := ScheduleForDay(c, instant(t, test.date))
+		wake := schedule[0]
+		if wake.Phase != "morning" || math.Abs(wake.At.Sub(instant(t, test.want)).Minutes()) > 3 {
+			t.Fatalf("Zurich sunrise %s differs from reference %s", wake.At, test.want)
+		}
+		t.Logf("%s: calculated sunrise/wake %s", test.date[:10], wake.At.Format("15:04:05 MST"))
+	}
+}

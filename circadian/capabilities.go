@@ -13,6 +13,12 @@ type ManagedLight struct {
 	Room  RoomConfig   `json:"room"`
 }
 
+// RoomLights includes excluded lights for observation and the web interface.
+func RoomLights(c Config, rooms []client.Room, devices []client.Device, lights []client.Light) ([]ManagedLight, error) {
+	c.ExcludeLights = nil
+	return SelectLights(c, rooms, devices, lights)
+}
+
 // SelectLights fails closed unless both configured rooms resolve exactly and unambiguously.
 func SelectLights(
 	c Config, rooms []client.Room, devices []client.Device, lights []client.Light,

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f5f1">
+  <title>Hue · Daily lighting</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="heading">
+      <div><p class="eyebrow">KITCHEN &amp; BEDROOM</p><h1>Daily lighting</h1></div>
+      <span id="connection" class="badge">Connecting…</span>
+    </header>
+
+    <section class="panel automation" aria-labelledby="automation-title">
+      <div><h2 id="automation-title">Automatic lighting</h2>
+        <p id="automation-description">Reading the controller’s current state…</p></div>
+      <button id="automation-toggle" type="button" role="switch" aria-checked="false"
+        aria-label="Automatic lighting" disabled><span class="switch-track" aria-hidden="true"></span>
+        <span id="toggle-label">Loading</span></button>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="overview" aria-label="Daily timing summary">
+      <div><p class="label" id="wake-label">Wake</p><p class="value" id="wake-time">—</p></div>
+      <div><p class="label">Current phase</p><p class="value" id="current-phase">—</p></div>
+      <div><p class="label">Bedtime</p><p class="value" id="bedtime">—</p></div>
+    </section>
+
+    <section aria-labelledby="lights-title">
+      <div class="section-heading"><h2 id="lights-title">Your lights</h2><p id="updated">Waiting for live state</p></div>
+      <div class="rooms">
+        <section class="panel room" aria-labelledby="kitchen-title">
+          <h3 id="kitchen-title">Kitchen</h3><ul id="kitchen-lights" class="lights"><li>Loading lights…</li></ul>
+        </section>
+        <section class="panel room" aria-labelledby="bedroom-title">
+          <h3 id="bedroom-title">Bedroom</h3><ul id="bedroom-lights" class="lights"><li>Loading lights…</li></ul>
+        </section>
+      </div>
+    </section>
+
+    <section class="panel timing" aria-labelledby="timing-title">
+      <div class="section-heading"><h2 id="timing-title">Today’s timing</h2><p id="schedule-date">—</p></div>
+      <p class="timing-note">Changes fade gradually. Manual changes keep priority until their hold ends.</p>
+      <ol id="schedule"><li class="loading">Loading the schedule…</li></ol>
+      <form id="timing-form">
+        <fieldset>
+          <legend>Adjust your times</legend>
+          <label class="sunrise-option"><input type="checkbox" id="sunrise-wake"> Wake at sunrise</label>
+          <div class="time-fields">
+            <label for="wake-override">Wake time<input type="time" id="wake-override" required></label>
+            <label for="bedtime-override">Bedtime<input type="time" id="bedtime-override" required></label>
+            <button id="save-timing" type="submit">Save times</button>
+          </div>
+          <p id="timing-message" role="status"></p>
+          <p id="timing-error" class="error" role="alert" hidden></p>
+        </fieldset>
+      </form>
+    </section>
+    <footer><span id="timezone">Local lighting control</span><span>Only Kitchen and Bedroom</span></footer>
+  </main>
+</body>
+</html>
