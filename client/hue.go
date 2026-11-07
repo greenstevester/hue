@@ -274,11 +274,16 @@ func (c *Client) delete(ctx context.Context, path string) ([]byte, error) {
 func (c *Client) request(ctx context.Context, method, path string, data interface{}) ([]byte, error) {
 	if method != http.MethodGet {
 		c.writeMu.Lock()
-		defer c.writeMu.Unlock()
 		if c.beforeWrite != nil {
 			if err := c.beforeWrite(ctx, path, data); err != nil {
+				c.writeMu.Unlock()
 				return nil, err
 			}
+		}
+		if ctx.Value(exclusiveWriteKey{}) != nil {
+			defer c.writeMu.Unlock()
+		} else {
+			c.writeMu.Unlock()
 		}
 	}
 	url := c.baseURL + path
@@ -511,7 +516,16 @@ func pow(base, exp float64) float64 {
 	return math.Pow(base, exp)
 }
 
-// SetWriteGuard installs an optional command coordinator. It also serializes writes.
+type exclusiveWriteKey struct{}
+
+// WithExclusiveWrite marks a write that later writes must wait for. A write started while it is in
+// flight runs its guard and goes to the Bridge only after it finishes, so a manual change made
+// meanwhile lands second and wins. Writes without the mark do not wait for each other.
+func WithExclusiveWrite(ctx context.Context) context.Context {
+	return context.WithValue(ctx, exclusiveWriteKey{}, true)
+}
+
+// SetWriteGuard installs an optional command coordinator. Each guard call runs alone.
 func (c *Client) SetWriteGuard(guard func(context.Context, string, interface{}) error) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
