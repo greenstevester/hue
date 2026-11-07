@@ -18,6 +18,15 @@ These commands do not need Bridge credentials or contact the Bridge. The example
 coordinate present, the configured fixed sunrise and sunset times apply. An absent polar sunrise or
 sunset also uses the corresponding fixed time.
 
+Set wake_time to "sunrise" to start the morning phase at local sunrise each day. This requires
+coordinates; sunrise_offset also adjusts that wake time. For Zurich, use
+[config/circadian-zurich.json](config/circadian-zurich.json), which uses city-centre coordinates
+47.3769 N, 8.5417 E and retains the 22:30 bedtime. Preview its daily boundaries with:
+
+```sh
+go run . circadian preview --config config/circadian-zurich.json --schedule
+```
+
 The solar calculation follows the [NOAA equations](https://gml.noaa.gov/grad/solcalc/solareqns.PDF).
 It estimates apparent sunrise and sunset using a 90.833-degree zenith; terrain and weather are not
 modelled. The calculation is scheduling guidance, not an astronomical measurement service.
@@ -47,6 +56,55 @@ To run inside the existing agent-facing server, set HUE_CIRCADIAN_CONFIG to the 
 before launching it. The tools circadian_status, circadian_pause, and circadian_resume control that
 process's engine. It starts paused. A separate command process cannot resume this server's engine.
 
+The installed macOS login service is local.hue.circadian. It runs the Zurich configuration from
+~/Library/Application Support/Hue Circadian/config.json and writes controller.log in that directory.
+It resumes automatically on login and retries after a process failure. Pause or resume it with:
+
+```sh
+launchctl kill SIGUSR2 "gui/$(id -u)/local.hue.circadian"
+launchctl kill SIGUSR1 "gui/$(id -u)/local.hue.circadian"
+```
+
+## Web interface
+
+The web page shows current light states, manual holds, and today's phase times. Its automatic-lighting
+switch pauses or enables scheduling and saves that choice across restarts. Disabling automation
+leaves the lights at their current settings. Manual holds keep priority when scheduling is enabled.
+
+Each light has its own scheduling switch. Turning that switch off excludes the light from automatic
+changes and leaves its current power and brightness unchanged. The light remains visible on the page.
+The timing form lets you choose sunrise or a fixed wake time and change bedtime. These choices and
+the individual scheduling switches are saved across restarts.
+
+```sh
+go run . circadian serve --config config/circadian-zurich.json --resume
+```
+
+Open http://127.0.0.1:8088. To make it available on your home network, add
+`--listen 0.0.0.0:8088` and use the controller computer's address. The same process runs the scheduler
+and serves the page. Its HTML, styles, and JavaScript are embedded in the Go binary; no browser
+assets are downloaded and no frontend build step is required. Bridge credentials stay on the server.
+
+Saving controls requires the configuration file's directory to be writable. The web interface remains
+available when automation is disabled.
+
+### Raspberry Pi
+
+The build and upload follow Fundpuppet's Go/SSH pattern and its existing ARMv7 Pi target.
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -o /tmp/hue-pi .
+```
+
+For an upload, create an ignored .env from .env.example with your local Bridge credential, then run
+`./deploy-pi.sh`. It copies the binary, private environment file, disabled configuration, and
+run-web.sh to stevepi@10.0.0.126:/home/stevepi/hue. It refuses to replace an existing configuration.
+PI_HOST and PI_KEY may override the host and key path. Nothing is started automatically.
+
+On the Pi, run `./run-web.sh` to view http://10.0.0.126:8088 with automation disabled. Choose one
+controller host before enabling scheduling. For a 64-bit Pi operating system, build with
+GOARCH=arm64 and omit GOARM.
+
 ## Behaviour
 
 Profiles specify a temperature or a colour, plus brightness. Room entries may override individual
@@ -58,6 +116,9 @@ late afternoon is two hours earlier and evening is one hour later. Solar anchors
 the explicit waking interval: sunset is between wake plus four hours and bedtime minus two hours,
 and daytime is no later than sunset minus three hours. Use preview to inspect seasonal results.
 Waking intervals shorter than six hours are rejected.
+
+For sunrise waking, the waking interval varies with the seasons. If it is shorter than six hours,
+the intermediate phase spacing contracts to fit without moving the sunrise wake time.
 
 Each phase blends from the previous profile over transition, shortened if the preceding interval is
 shorter. The smoothstep curve controls brightness and temperature or colour. The Bridge performs

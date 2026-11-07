@@ -80,22 +80,28 @@ func (c Config) Validate() error {
 	if _, err := time.LoadLocation(c.Timezone); err != nil {
 		return err
 	}
-	for _, value := range []string{c.WakeTime, c.Bedtime, c.FixedSunrise, c.FixedSunset} {
+	for _, value := range []string{c.Bedtime, c.FixedSunrise, c.FixedSunset} {
 		if _, err := time.Parse("15:04", value); err != nil {
 			return fmt.Errorf("invalid clock time %q", value)
 		}
 	}
-	if c.WakeTime == c.Bedtime {
-		return fmt.Errorf("wake time and bedtime must differ")
-	}
-	wake, _ := time.Parse("15:04", c.WakeTime)
-	bed, _ := time.Parse("15:04", c.Bedtime)
-	awake := bed.Sub(wake)
-	if awake < 0 {
-		awake += 24 * time.Hour
-	}
-	if awake < 6*time.Hour {
-		return fmt.Errorf("waking interval must be at least six hours")
+	if c.WakeTime == "sunrise" {
+		if c.Latitude == nil || c.Longitude == nil {
+			return fmt.Errorf("sunrise wake requires latitude and longitude")
+		}
+	} else {
+		wake, err := time.Parse("15:04", c.WakeTime)
+		if err != nil {
+			return fmt.Errorf("invalid wake time %q", c.WakeTime)
+		}
+		bed, _ := time.Parse("15:04", c.Bedtime)
+		awake := bed.Sub(wake)
+		if awake < 0 {
+			awake += 24 * time.Hour
+		}
+		if awake < 6*time.Hour {
+			return fmt.Errorf("waking interval must be at least six hours")
+		}
 	}
 	for _, value := range []string{c.SunriseOffset, c.SunsetOffset} {
 		d, err := time.ParseDuration(value)

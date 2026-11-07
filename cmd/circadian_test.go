@@ -44,3 +44,12 @@ func TestCircadianBridgeRequirementAcceptsFlagsBeforeSubcommand(t *testing.T) {
 		}
 	}
 }
+
+func TestServeAliasNeedsBridgeAndSupportsHelp(t *testing.T) {
+	if !CircadianNeedsBridge([]string{"serve", "--listen", "127.0.0.1:8088"}) {
+		t.Fatal("serve alias missed")
+	}
+	if CircadianNeedsBridge([]string{"serve", "--help"}) {
+		t.Fatal("serve help requires Bridge")
+	}
+}

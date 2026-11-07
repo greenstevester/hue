@@ -1,79 +1,115 @@
 # Circadian lighting handoff
 
-Updated 2026-10-30.
+Updated 2026-11-07.
 
-## Next session
+## Current setup
 
-The user asked to stop trying to find the Hue Bridge in this session. Resume that work next session.
-Control must remain limited to Kitchen and Bedroom. Leave every other room untouched.
+The Bridge is reachable at 10.0.0.101. Its time zone is Europe/Zurich. The user selected Zurich as the
+location and requested that wake follow sunrise. config/circadian-zurich.json uses city-centre
+coordinates 47.3769 N, 8.5417 E, wake_time "sunrise", a zero sunrise offset, and 22:30 bedtime.
+The calculated wake for 2026-11-08 is 07:18:45 local time; the published Zurich sunrise is about 07:19.
 
-The last read-only request to the recorded Bridge address, 10.0.0.101, timed out. This does not prove
-that the Bridge is offline or that its address is still correct. HUE_USERNAME and HUE_BRIDGE_IP were
-absent from the shell environment. No physical lights were changed or tested.
+Only these lights may be controlled:
 
-Ask the user for the current Bridge address if it cannot be resolved from local configuration.
-Have them configure credentials locally; do not ask them to paste credentials into chat. A
-credential-like value exists in an unrelated, uncommitted README edit. Do not copy it into this
-handoff or include that edit in the circadian commit.
+| Room | Light | Identifier |
+|---|---|---|
+| Kitchen | Kitchen-Island | d023cd29-fd34-4e13-b56a-dbd3357c2372 |
+| Kitchen | kitchen-cupboards | b7c78373-ff8c-4f78-99dc-a3e05e183c21 |
+| Bedroom | bed-platform | 44f68c6e-4fe3-4ca8-9f68-c706ccee752f |
+| Bedroom | bedroom-window | dac5cd32-a924-480a-8ac2-9783f8254d30 |
 
-Before enabling writes:
+Both kitchen lights and bed-platform are Hue lightstrip plus devices. bedroom-window is a
+third-party extended-colour bulb. All four advertise colour control and temperature ranges. None
+reports gradient capability. The strips report minimum brightness 0.04%; the window bulb does not
+report a minimum. Do not infer its physical minimum from that omission.
 
-1. Read the real room, device, light, and entertainment resources.
-2. Resolve exactly one Kitchen and one Bedroom and inspect their light identifiers. If the actual
-   names differ, confirm the mapping rather than selecting another room by a partial name.
-3. Check each selected light's dimming minimum, temperature limits, colour gamut, gradient features,
-   and entertainment status. Verify exclusions and confirm that no other room's lights are selected.
-4. Confirm the user's latitude/longitude, wake time, and bedtime. The current example uses
-   Europe/Zurich, 07:00 wake, and 22:30 bedtime. Coordinates are deliberately unset; solar scheduling
-   currently falls back to the configured fixed times. A time zone does not establish a location.
-5. Start paused and review the selected lights before explicitly resuming. Test fades, minimum
-   brightness, amber/red appearance, and white-only fallbacks on the selected rooms.
-6. Test manual changes through the Hue app, switches, and existing controller commands. Confirm the
-   two-hour hold, explicit resume, and that manually switched-off lights stay off after hold expiry.
-7. Check disconnection/reconnection, scene recall, effects, and entertainment coexistence. Confirm
-   that reconnecting does not write to a light moved out of either selected room.
+## Entertainment correction
 
-## Implementation and local checks
+At the user's request, bed-platform was removed from both entertainment areas. The Bridge accepted
+both updates and reported the strip back in normal mode. Entertainment area 1 is empty and inactive.
+Entertainment area 2 retains its other light and remained active. Do not reattach bed-platform.
 
-Usage is in [CIRCADIAN.md](CIRCADIAN.md). Configuration is in
-[config/circadian-example.json](config/circadian-example.json).
+## Live verification and fixes
 
-The engine supports six profiles, solar/fixed-time scheduling, smooth interpolation, device
-fallbacks, manual holds, and pause/resume. It starts paused. Local sequence and batch ownership,
-Bridge write errors, colour conversion, and event cancellation also received changes.
+The bedroom-window bulb initially reported a connection issue. The user powered it on; the Bridge
+then reported it connected and subsequent writes succeeded.
 
-The following passed in this session before handoff preparation:
+Live white-light testing revealed that the Bridge may announce the final target before reporting
+intermediate fade values. The controller now accepts those expected values during the bounded fade
+window instead of creating a false manual hold. The window bulb can report a white target as colour
+coordinates with a null mirek. Expected white-colour acknowledgements are now recognised too.
+Regression tests reproduced both failures before the fixes.
+
+The corrected controller reached white targets without false holds. An external kitchen brightness
+change created the normal two-hour hold. A separate temporary 15-second hold test expired and
+returned the kitchen light to its target. That short duration is test-only; the Zurich configuration
+retains two hours.
+
+The manual-off test also passed after the temporary hold expired. Amber commands were accepted by
+all four devices; the first bed-platform snapshot was still transitioning. All four subsequently
+reported the red target at approximately 3.16% brightness. Subjective fade quality and actual Hue
+app/switch presses still need user confirmation; external authenticated writes test the observation
+path but do not prove those physical controls.
+
+## Automatic startup
+
+Installed local.hue.circadian as a macOS login service. Its binary, private configuration, and log
+are under ~/Library/Application Support/Hue Circadian/. Its private startup file is
+~/Library/LaunchAgents/local.hue.circadian.plist. Both configuration files have owner-only read/write
+permissions. Credentials are local and must never be copied into repository files or chat.
+
+The service runs circadian serve --resume --listen 0.0.0.0:8088 with the Zurich configuration
+and the normal two-hour hold. Open http://127.0.0.1:8088 on the controller computer.
+An initial network connection failure caused an exit; the service automatically retried and started
+successfully. Inspect controller.log and service status when diagnosing future connection failures.
+The service starts at login and requires the computer to remain awake for scheduled changes.
+
+Pause and resume the running service with:
+
+```sh
+launchctl kill SIGUSR2 "gui/$(id -u)/local.hue.circadian"
+launchctl kill SIGUSR1 "gui/$(id -u)/local.hue.circadian"
+```
+
+## Verification commands
 
 ```sh
 go test -race ./... -timeout 45s
 go vet ./...
-go build -o /tmp/hue-circadian .
-/tmp/hue-circadian circadian validate --config config/circadian-example.json
-/tmp/hue-circadian circadian preview --config config/circadian-example.json \
-  --at 2026-10-30T19:15:00+01:00
+go build -o /tmp/hue-live-controller .
+/tmp/hue-live-controller circadian validate --config config/circadian-zurich.json
+/tmp/hue-live-controller circadian preview --config config/circadian-zurich.json --schedule
 ```
 
-These checks use mock Bridge responses and injected time. They do not establish hardware acceptance.
-Rerun them after any changes next session.
+The race tests, static checks, build, validation, and schedule preview passed after the live fixes
+and sunrise-wake change. Recheck after further edits. Usage is in CIRCADIAN.md.
 
-## Remaining limits
+## Remaining limits and work to preserve
 
-- Exact Bridge request ceilings and maximum transition durations were not verified. Detailed Hue
-  developer pages returned access errors. One write per second and ten-second Bridge fades are
-  implementation choices pending hardware checks, not verified manufacturer limits.
-- Gradient strips receive uniform colour. Ambient-sensor brightness adjustment and biological
-  exposure calculations are deferred; the controller works without additional hardware.
-- No independent Lumios spectral or flicker measurements were verified. The implementation makes
-  no equivalence or therapeutic claims and cannot add dedicated near-infrared emission.
-- External commands that match expected transition progress cannot always be distinguished from
-  the controller's own changes. A separate process's private effect lifetime is unavailable.
-- Restarting clears in-memory holds, so startup is paused unless explicitly resumed. No background
-  process or automatic startup was installed.
+The embedded web page now shows all four lights, observed state, manual holds, and daily phase times.
+It saves global and per-light scheduling switches, sunrise or fixed wake time, and bedtime to the
+private configuration. Disabling a light's schedule leaves its physical state unchanged. Excluded
+lights remain visible. Live checks verified saved settings after a service restart, then restored
+sunrise waking, 22:30 bedtime, and scheduling enabled for all four lights. Safari clicks verified
+global and individual switches and the timing form. Automated race tests and static checks passed.
 
-## Existing work to preserve
+The web server and assets are in webui/. The serve command shares the existing controller process.
+run-web.sh and deploy-pi.sh follow Fundpuppet's single-binary pattern. The ARMv7 build succeeded and
+an earlier web build ran its help command on the actual 32-bit Pi. The Pi controller has not been
+started or installed as a service; the Mac remains the automation owner. Never run both owners.
 
-Before this task, EFFECTS_GUIDE.md, README.md, cmd/resolver.go, cmd/root.go, cmd/stream.go, and main.go
-already had uncommitted changes. CLAUDE.md, todos.md, and the hue executable were also untracked.
-Keep those unrelated edits and files out of the circadian commit. README.md, cmd/stream.go, and
-main.go contain both existing work and changes from this task, so stage their circadian changes
-selectively. Do not discard or unstage the user's work.
+Exact manufacturer request ceilings were not verified. One write per second and short Bridge fades
+are implementation choices; observed success does not establish the maximum supported rate.
+No independent Lumios spectral/flicker measurements were verified. No equivalence, therapeutic,
+or dedicated near-infrared capability is claimed. Ambient-sensor adjustment and gradient segments
+remain outside this implementation.
+
+External changes indistinguishable from an expected fade cannot always be attributed perfectly.
+In-memory holds reset on restart; ordinary startup remains paused unless explicitly resumed.
+Automatic startup, when installed, uses --resume. The computer must remain awake for scheduling.
+
+The previous implementation commit is e978a97. Existing staged edits in CLAUDE.md, EFFECTS_GUIDE.md,
+README.md, cmd/resolver.go, cmd/root.go, cmd/stream.go, main.go, todos.md, and the hue executable
+belong to earlier user work. Preserve them. Current live-test fixes and sunrise changes are separate
+unstaged work; do not commit them without approval. Do not expose or commit credentials. Temporary
+live-test connection files are in a private directory recorded by /tmp/hue-live-path.
