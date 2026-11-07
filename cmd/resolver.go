@@ -87,9 +87,9 @@ func resolveGroupID(ctx context.Context, nameOrID string) (string, error) {
 
 	// Try partial match
 	var matches []struct {
-		ID       string
-		Name     string
-		GroupID  string
+		ID      string
+		Name    string
+		GroupID string
 	}
 
 	searchLower := strings.ToLower(nameOrID)
@@ -203,7 +203,7 @@ func resolveSceneID(ctx context.Context, nameOrID string) (string, error) {
 		for _, scene := range scenes {
 			roomName := getRoomName(scene)
 			if strings.EqualFold(scene.Metadata.Name, sceneName) &&
-			   strings.Contains(strings.ToLower(roomName), roomFilterLower) {
+				strings.Contains(strings.ToLower(roomName), roomFilterLower) {
 				roomFilterMatches = append(roomFilterMatches, struct {
 					ID       string
 					Name     string
