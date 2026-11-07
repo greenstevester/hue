@@ -74,3 +74,24 @@ func TestBatchClaimsOnlyTheLightsItTouches(t *testing.T) {
 		t.Fatalf("batch with a group command claimed %v, want every managed light", claimed[1])
 	}
 }
+
+func TestSynchronousBatchReplyGivesFailureReasons(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"errors":[],"data":[]}`)
+	}))
+	defer server.Close()
+	c := client.NewClient(strings.TrimPrefix(server.URL, "https://"), "test", server.Client())
+	request := mcp.CallToolRequest{}
+	request.Params.Arguments = map[string]interface{}{
+		"commands": `[{"action":"light_brightness","target_id":"a","value":"bright"}]`,
+		"async":    false,
+	}
+	result, err := HandleBatchCommands(c)(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !strings.Contains(text, "invalid brightness value: bright") {
+		t.Fatalf("reply hides why the command failed:\n%s", text)
+	}
+}
