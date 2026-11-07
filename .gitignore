@@ -33,3 +33,6 @@ claude_desktop_config.json
 *.swp
 *.swo
 *~
+
+# Built CLI binary at the repo root
+/hue
