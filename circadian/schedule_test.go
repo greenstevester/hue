@@ -31,6 +31,8 @@ func TestTargetUsesSixPhasesAndSmoothstep(t *testing.T) {
 		{"2026-01-10T19:30:00+01:00", "evening", 15},
 		{"2026-01-10T23:00:00+01:00", "night", 3},
 		{"2026-01-10T08:15:00+01:00", "daytime", 87.5},
+		// A quarter of the way through, the smooth curve has moved 15.6% of the way, not 25%.
+		{"2026-01-10T08:07:30+01:00", "daytime", 89.21875},
 	} {
 		got := TargetAt(c, instant(t, test.at), c.Rooms[0])
 		if got.Phase != test.phase || math.Abs(got.Brightness-test.brightness) > 0.001 {

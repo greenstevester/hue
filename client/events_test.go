@@ -184,3 +184,19 @@ func TestEventStreamReconnectsAndRequiresFreshConnectionSignal(t *testing.T) {
 		t.Fatal("no recovery event")
 	}
 }
+
+func TestFilterEventsDropsOtherResourceTypes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &EventStream{events: make(chan Event, 2), errors: make(chan error, 2), ctx: ctx, cancel: cancel}
+	stream.processEvent(`[{"type":"update","data":[{"type":"button","id":"switch"}]},` +
+		`{"type":"update","data":[{"type":"light","id":"lamp"}]}]`)
+	select {
+	case event := <-stream.FilterEvents("light"):
+		if event.Data[0].ID != "lamp" {
+			t.Fatalf("button event got through a light filter: %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("light update filtered out")
+	}
+}

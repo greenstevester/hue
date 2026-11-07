@@ -427,3 +427,36 @@ func TestTimingOverridesApplyWithoutClearingManualHold(t *testing.T) {
 		t.Fatal("invalid time accepted")
 	}
 }
+
+func TestResumeDoesNotRestartScheduleSwitchedOffInConfiguration(t *testing.T) {
+	c := DefaultConfig()
+	c.Enabled = false // the web switch saved "off"; run-web.sh restarts with --resume
+	b := &fakeBridge{}
+	l := client.Light{ID: "k", On: client.OnState{On: true}, HasDimming: true, Dimming: client.Dimming{Brightness: 50}}
+	e, err := NewEngine(c, b, []ManagedLight{{Light: l, Room: c.Rooms[0]}}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.guard = e.Guard
+	e.SetHealthy(true)
+	e.Resume()
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 0 || e.Status().Enabled {
+		t.Fatalf("schedule switched off in configuration came back after resume: %d writes", len(b.writes))
+	}
+}
+
+func TestLightReturnsToScheduleAfterEffectAndHoldEnd(t *testing.T) {
+	e, b, now := engineFixture(t)
+	_ = e.Guard(context.Background(), "/activity", client.Activity{Targets: []string{"k"}, Active: true})
+	_ = e.Guard(context.Background(), "/activity", client.Activity{Targets: []string{"k"}, Active: false})
+	*now = now.Add(2*time.Hour + time.Second)
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 1 {
+		t.Fatal("light stayed off the schedule after its effect and hold ended")
+	}
+}
