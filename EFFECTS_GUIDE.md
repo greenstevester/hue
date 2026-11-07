@@ -1,6 +1,7 @@
 # Hue MCP Effects & Sequences Guide
 
-This guide showcases the lighting effects and sequences available in the Hue MCP server. All effects run asynchronously, meaning you get control back immediately while your lights perform the effects in the background.
+This guide showcases the lighting effects and sequences available in the Hue MCP server.
+All effects run asynchronously, meaning you get control back immediately while your lights perform the effects in the background.
 
 ## Quick Start Examples
 

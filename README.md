@@ -75,7 +75,7 @@ go build -o hue
 
 ```bash
 export HUE_BRIDGE_IP="192.168.1.100"  # Your bridge IP
-export HUE_USERNAME="your-api-username-here"
+export HUE_USERNAME="your-bridge-application-key"
 ```
 
 ### 5. Configure Claude Desktop (example)
@@ -131,13 +131,13 @@ hue groups color "Kitchen" warm
 hue groups rooms  # List all rooms
 
 # Effects
-hue effects flash "Office Lamp" --color red --count 3
-hue effects pulse "Bedroom Light" --min 10 --max 90
+./hue effects flash "Kitchen-Island" --color red --count 3
+./hue effects pulse "Kitchen-Island" --min 10 --max 90
 hue effects stop <sequence-id>
 
 # Native Hue scenes
-hue hue-scenes list
-hue hue-scenes activate "Relax"
+./hue hue-scenes list
+./hue hue-scenes activate "Relax"
 
 # Cached scenes (from MCP)
 hue scenes list
@@ -333,3 +333,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 Apache 2.0 Licence
+
+export HUE_BRIDGE_IP="10.0.0.101"
+export HUE_USERNAME="your-bridge-application-key"
+hue lights list
+
+./hue effects flash Kitchen-Island --color red --count 3
+
+./hue effects pulse "Kitchen-Island" --min 10 --max 90

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/kungfusheep/hue/client"
 	"github.com/kungfusheep/hue/mcp"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -24,12 +24,14 @@ var rootCmd = &cobra.Command{
 	Use:   "hue",
 	Short: "CLI for controlling Philips Hue lights",
 	Long: `Hue CLI provides command-line access to all Philips Hue functionality.
-	
+
 Control lights, groups, scenes, and effects directly from your terminal.
 Perfect for scripting, testing, or quick light adjustments.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Skip client init for commands that don't need it
-		if hueClient == nil || cmd.Name() == "help" || cmd.Name() == "discover" {
+		// Skip client init for commands that don't need it or when client is nil
+		cmdName := cmd.Name()
+		if hueClient == nil || cmdName == "help" || cmdName == "discover" ||
+		   cmdName == "hue" || cmdName == "completion" {
 			return
 		}
 

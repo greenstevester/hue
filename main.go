@@ -34,8 +34,29 @@ func main() {
 		return
 	}
 
-	// Check if it is a CLI command
-	cliCommands := []string{"lights", "groups", "effects", "scenes", "hue-scenes", "sensors", "batch", "stream", "discover", "help"}
+	// Check for commands that don't need Hue client initialization
+	noClientCommands := []string{"discover", "help"}
+	for _, cmd := range noClientCommands {
+		if os.Args[1] == cmd {
+			runCLIWithoutClient()
+			return
+		}
+	}
+
+	// Check for global help flag
+	if len(os.Args) > 1 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
+		runCLIWithoutClient()
+		return
+	}
+
+	// Check for command-specific help (e.g., "lights --help")
+	if len(os.Args) > 2 && (os.Args[2] == "--help" || os.Args[2] == "-h") {
+		runCLIWithoutClient()
+		return
+	}
+
+	// Check if it's a CLI command that needs client
+	cliCommands := []string{"lights", "groups", "effects", "scenes", "hue-scenes", "sensors", "batch", "stream"}
 	for _, cmd := range cliCommands {
 		if os.Args[1] == cmd {
 			runCLI()
@@ -210,7 +231,8 @@ func registerGroupTools(srv *server.MCPServer, client *client.Client) {
 	// Group brightness
 	groupBrightnessTool := mcp.NewTool("group_brightness",
 		mcp.WithDescription("Set group brightness"),
-		mcp.WithString("group_id", mcp.Required(), mcp.Description("Brightness percentage (0-100)")),
+		mcp.WithString("group_id", mcp.Required(), mcp.Description("The ID of the group")),
+		mcp.WithNumber("brightness", mcp.Required(), mcp.Description("Brightness percentage (0-100)")),
 	)
 	srv.AddTool(groupBrightnessTool, mcpserver.HandleGroupBrightness(client))
 

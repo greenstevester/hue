@@ -84,6 +84,55 @@ go build -o /tmp/hue-live-controller .
 The race tests, static checks, build, validation, and schedule preview passed after the live fixes
 and sunrise-wake change. Recheck after further edits. Usage is in CIRCADIAN.md.
 
+## Update the running Mac controller
+
+Run these commands from the repository directory after approving the code changes. They build and
+check the new binary, replace the installed executable, and restart the existing login service.
+The private configuration and startup credentials remain in place. Do not copy the repository's
+example configuration over the live file: dashboard settings are saved in that live file.
+
+```sh
+go test -race ./... -timeout 45s &&
+go vet ./... &&
+go build -trimpath -o /tmp/hue-circadian-update . &&
+/tmp/hue-circadian-update circadian validate \
+  --config "$HOME/Library/Application Support/Hue Circadian/config.json" &&
+install -m 755 /tmp/hue-circadian-update \
+  "$HOME/Library/Application Support/Hue Circadian/hue-circadian.new" &&
+mv "$HOME/Library/Application Support/Hue Circadian/hue-circadian.new" \
+  "$HOME/Library/Application Support/Hue Circadian/hue-circadian" &&
+launchctl kickstart -k "gui/$(id -u)/local.hue.circadian"
+```
+
+Check the page and controller health after restart:
+
+```sh
+curl --connect-timeout 3 --max-time 10 -fsS http://127.0.0.1:8088/api/status |
+  jq '{healthy, enabled, wake_time, bedtime, lights: [.lights[] | {name, enabled, on}]}'
+tail -n 30 "$HOME/Library/Application Support/Hue Circadian/controller.log"
+```
+
+If the first connection fails, inspect the log and allow the login service to retry. A successful
+page response alone does not prove Bridge connectivity; healthy must be true. Enabled may be false
+if the user paused scheduling. Check http://127.0.0.1:8088 locally and the Mac's current home-network
+address from the iPad; the last verified address was http://10.0.0.129:8088.
+
+## Build and upload for Raspberry Pi
+
+Read the Raspberry Pi section in CIRCADIAN.md and deploy-pi.sh first. The target is the existing
+32-bit ARMv7 Pi, stevepi@10.0.0.126, using ~/.ssh/id_ed25519_raspberrypi002. Build without uploading:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -o /tmp/hue-pi .
+```
+
+For the first upload, prepare the ignored .env using .env.example and the existing private Bridge
+credential, then run ./deploy-pi.sh. The script refuses to replace an existing Pi configuration and
+does not start the controller. It uploads to /home/stevepi/hue. A later update requires reviewing the
+installed configuration before replacing files; the script is not an unattended update mechanism.
+Installing automatic startup on the Pi has not been implemented. Agree on stopping the Mac owner
+before starting scheduling on the Pi. Do not deploy or start a second owner merely to check a build.
+
 ## Remaining limits and work to preserve
 
 The embedded web page now shows all four lights, observed state, manual holds, and daily phase times.
@@ -108,8 +157,10 @@ External changes indistinguishable from an expected fade cannot always be attrib
 In-memory holds reset on restart; ordinary startup remains paused unless explicitly resumed.
 Automatic startup, when installed, uses --resume. The computer must remain awake for scheduling.
 
-The previous implementation commit is e978a97. Existing staged edits in CLAUDE.md, EFFECTS_GUIDE.md,
-README.md, cmd/resolver.go, cmd/root.go, cmd/stream.go, main.go, todos.md, and the hue executable
-belong to earlier user work. Preserve them. Current live-test fixes and sunrise changes are separate
-unstaged work; do not commit them without approval. Do not expose or commit credentials. Temporary
+The initial implementation commit is e978a97. Dashboard controls, live-test fixes, sunrise waking,
+and Pi build/upload scripts were committed and pushed to origin/main in fb1bb55. The subsequent
+housekeeping change includes the startup instructions, deployment handoff, earlier command fixes,
+project guidance, and rebuilt Mac executable. The README credential example uses a placeholder.
+Check git status at session startup rather than assuming the staging area is empty. Preserve any
+existing changes and ask before committing. Do not expose or commit credentials. Temporary
 live-test connection files are in a private directory recorded by /tmp/hue-live-path.
