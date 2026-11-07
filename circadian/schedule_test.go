@@ -2,6 +2,7 @@ package circadian
 
 import (
 	"math"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -51,6 +52,12 @@ func TestWallTimeHandlesDaylightSavingGapAndRepeatedMinute(t *testing.T) {
 		if !got.Equal(instant(t, test.want)) {
 			t.Fatalf("got %s want %s", got, test.want)
 		}
+	}
+}
+
+func TestSunriseWakeAcceptsTheZurichConfiguration(t *testing.T) {
+	if _, err := LoadConfig(filepath.Join("..", "config", "circadian-zurich.json")); err != nil {
+		t.Fatal(err)
 	}
 }
 

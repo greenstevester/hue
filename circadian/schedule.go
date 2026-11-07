@@ -51,8 +51,9 @@ func wallTime(date time.Time, clock string) time.Time {
 	return end
 }
 
-func dailyAnchors(c Config, date time.Time) []anchor {
-	rise := wallTime(date, c.FixedSunrise)
+// wakeAndBed returns the day's sunrise (with offset), wake time, and the first bedtime after waking.
+func wakeAndBed(c Config, date time.Time) (rise, wake, bed time.Time) {
+	rise = wallTime(date, c.FixedSunrise)
 	if c.Latitude != nil {
 		if value, ok := solarTime(date, *c.Latitude, *c.Longitude, true); ok {
 			rise = value
@@ -60,16 +61,20 @@ func dailyAnchors(c Config, date time.Time) []anchor {
 	}
 	riseOffset, _ := time.ParseDuration(c.SunriseOffset)
 	rise = rise.Add(riseOffset)
-	var wake time.Time
 	if c.WakeTime == "sunrise" {
 		wake = rise
 	} else {
 		wake = wallTime(date, c.WakeTime)
 	}
-	bed := wallTime(date, c.Bedtime)
+	bed = wallTime(date, c.Bedtime)
 	if !bed.After(wake) {
 		bed = wallTime(date.AddDate(0, 0, 1), c.Bedtime)
 	}
+	return rise, wake, bed
+}
+
+func dailyAnchors(c Config, date time.Time) []anchor {
+	rise, wake, bed := wakeAndBed(c, date)
 	set := wallTime(date, c.FixedSunset)
 	if !set.After(wake) {
 		set = wallTime(date.AddDate(0, 0, 1), c.FixedSunset)
