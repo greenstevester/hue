@@ -47,7 +47,11 @@ func runStream(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start event stream: %w", err)
 	}
-	defer eventStream.Close()
+	defer func() {
+		if eventStream != nil {
+			eventStream.Close()
+		}
+	}()
 
 	fmt.Println("🔴 Streaming live events (Ctrl+C to stop)...")
 	fmt.Println()
