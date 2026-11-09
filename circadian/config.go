@@ -21,6 +21,7 @@ type Profile struct {
 type RoomConfig struct {
 	Name     string             `json:"name"`
 	ID       string             `json:"id,omitempty"`
+	Lights   []string           `json:"lights,omitempty"` // when set, only these lights in the room
 	Profiles map[string]Profile `json:"profiles,omitempty"`
 }
 
@@ -128,14 +129,11 @@ func (c Config) Validate() error {
 			return err
 		}
 	}
-	if len(c.Rooms) != 2 {
-		return fmt.Errorf("configure exactly Kitchen and Bedroom")
-	}
 	seen := map[string]bool{}
 	for _, r := range c.Rooms {
 		name := strings.ToLower(r.Name)
-		if (name != "kitchen" && name != "bedroom") || seen[name] {
-			return fmt.Errorf("only Kitchen and Bedroom may be controlled")
+		if !controlledRoom(name) || seen[name] {
+			return fmt.Errorf("only Kitchen, Bedroom and Lounge may be controlled, each once")
 		}
 		seen[name] = true
 		for phase, p := range r.Profiles {
@@ -143,6 +141,9 @@ func (c Config) Validate() error {
 				return err
 			}
 		}
+	}
+	if !seen["kitchen"] || !seen["bedroom"] {
+		return fmt.Errorf("configure Kitchen and Bedroom")
 	}
 	if len(c.Profiles) != len(phases) {
 		return fmt.Errorf("all six lighting profiles are required")
@@ -166,6 +167,16 @@ func (c Config) checkSunriseDays(location *time.Location) error {
 		}
 	}
 	return nil
+}
+
+// controlledRoom names the rooms the schedule may control.
+// Kitchen and Bedroom are required; Lounge is optional.
+func controlledRoom(name string) bool {
+	switch strings.ToLower(name) {
+	case "kitchen", "bedroom", "lounge":
+		return true
+	}
+	return false
 }
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }

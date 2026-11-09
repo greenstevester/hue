@@ -10,7 +10,7 @@ import (
 	"github.com/kungfusheep/hue/client"
 )
 
-// Start discovers the two rooms, acquires local ownership, and starts paused.
+// Start discovers the configured rooms, acquires local ownership, and starts paused.
 // statePath names the file that remembers the schedule's switch-offs (see StatePath); empty keeps
 // them in memory only. The returned stop function cancels all work and waits for cleanup.
 func Start(

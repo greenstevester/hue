@@ -20,7 +20,7 @@ import (
 
 func newCircadianCommand() *cobra.Command {
 	var path string
-	command := &cobra.Command{Use: "circadian", Short: "Adaptive lighting for Kitchen and Bedroom"}
+	command := &cobra.Command{Use: "circadian", Short: "Adaptive lighting for Kitchen, Bedroom and Lounge"}
 	command.PersistentFlags().StringVar(&path, "config", os.Getenv("HUE_CIRCADIAN_CONFIG"), "Circadian JSON configuration")
 	load := func() (circadian.Config, error) {
 		if path == "" {
@@ -32,7 +32,7 @@ func newCircadianCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			_, err := load()
 			if err == nil {
-				fmt.Println("Configuration valid: Kitchen and Bedroom only")
+				fmt.Println("Configuration valid: Kitchen, Bedroom and Lounge only")
 			}
 			return err
 		}})

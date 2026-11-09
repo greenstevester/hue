@@ -14,6 +14,10 @@ func TestConfigRejectsUnapprovedRoomsAndInvalidValues(t *testing.T) {
 		{"other room", func(c *Config) { c.Rooms[1].Name = "Office" }},
 		{"missing room", func(c *Config) { c.Rooms = c.Rooms[:1] }},
 		{"duplicate room", func(c *Config) { c.Rooms[1].Name = "Kitchen" }},
+		{"lounge without bedroom", func(c *Config) { c.Rooms[1].Name = "Lounge" }},
+		{"lounge twice", func(c *Config) {
+			c.Rooms = append(c.Rooms, RoomConfig{Name: "Lounge"}, RoomConfig{Name: "lounge"})
+		}},
 		{"timezone", func(c *Config) { c.Timezone = "invalid/place" }},
 		{"missing coordinate", func(c *Config) { v := 47.0; c.Latitude = &v }},
 		{"invalid location", func(c *Config) { a, b := 91.0, 0.0; c.Latitude = &a; c.Longitude = &b }},
@@ -79,5 +83,20 @@ func TestSunriseWakeRequiresCoordinates(t *testing.T) {
 	c.Longitude = &longitude
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLoungeMayBeAddedWithAListOfLights(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	input := `{"rooms":[{"name":"Kitchen"},{"name":"Bedroom"},{"name":"Lounge","lights":["f"]}]}`
+	if err := os.WriteFile(path, []byte(input), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Rooms) != 3 || len(c.Rooms[2].Lights) != 1 || c.Rooms[2].Lights[0] != "f" {
+		t.Fatalf("lounge entry read as %+v", c.Rooms)
 	}
 }

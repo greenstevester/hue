@@ -130,9 +130,10 @@ function render(state) {
     wakeInput.disabled = sunriseInput.checked;
     bedtimeInput.value = state.bedtime;
   }
-  for (const room of ['kitchen', 'bedroom']) {
+  for (const room of ['kitchen', 'bedroom', 'lounge']) {
     const list = document.querySelector(`#${room}-lights`);
     const lights = state.lights.filter((light) => light.room.toLowerCase() === room);
+    if (room === 'lounge') list.closest('.room').hidden = !lights.length; // the lounge is optional
     const signature = JSON.stringify(lights.map((light) => [light.id, light.name, light.enabled,
       light.on, light.brightness, light.mirek, light.hold_until,
       new Date(light.hold_until) > new Date(state.at), lightErrors.get(light.id)]));

@@ -19,7 +19,7 @@ func RoomLights(c Config, rooms []client.Room, devices []client.Device, lights [
 	return SelectLights(c, rooms, devices, lights)
 }
 
-// SelectLights fails closed unless both configured rooms resolve exactly and unambiguously.
+// SelectLights fails closed unless every configured room resolves exactly and unambiguously.
 func SelectLights(
 	c Config, rooms []client.Room, devices []client.Device, lights []client.Light,
 ) ([]ManagedLight, error) {
@@ -59,9 +59,16 @@ func SelectLights(
 				}
 			}
 		}
-		count := 0
+		listed := map[string]bool{}
+		for _, id := range wanted.Lights {
+			listed[id] = true
+		}
+		count, found := 0, 0
 		for _, light := range lights {
-			if !members[light.ID] || excluded[light.ID] {
+			if members[light.ID] && listed[light.ID] {
+				found++
+			}
+			if !members[light.ID] || excluded[light.ID] || (len(listed) > 0 && !listed[light.ID]) {
 				continue
 			}
 			if selected[light.ID] {
@@ -70,6 +77,9 @@ func SelectLights(
 			selected[light.ID] = true
 			result = append(result, ManagedLight{Light: light, Room: wanted})
 			count++
+		}
+		if found != len(listed) {
+			return nil, fmt.Errorf("room %s does not contain every listed light; refusing control", wanted.Name)
 		}
 		if count == 0 {
 			return nil, fmt.Errorf("room %s has no eligible lights", wanted.Name)

@@ -111,7 +111,7 @@ func (e *Engine) SetLightEnabled(id string, enabled bool) error {
 	defer e.mu.Unlock()
 	s := e.lights[id]
 	if s == nil {
-		return fmt.Errorf("light is outside Kitchen and Bedroom")
+		return fmt.Errorf("light is not one the schedule controls")
 	}
 	var excluded []string
 	for _, candidate := range e.config.ExcludeLights {
@@ -148,7 +148,7 @@ func NewEngine(c Config, b Bridge, lights []ManagedLight, now func() time.Time) 
 		blocked: map[string]bool{}, activities: map[string]int{}, paused: true,
 	}
 	for _, l := range lights {
-		if strings.ToLower(l.Room.Name) != "kitchen" && strings.ToLower(l.Room.Name) != "bedroom" {
+		if !controlledRoom(l.Room.Name) {
 			return nil, fmt.Errorf("unapproved room %q", l.Room.Name)
 		}
 		e.lights[l.Light.ID] = &lightState{managed: l}

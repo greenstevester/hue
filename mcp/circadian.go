@@ -13,7 +13,7 @@ import (
 func RegisterCircadianTools(s *server.MCPServer, e *circadian.Engine) {
 	for _, action := range []string{"status", "pause", "resume"} {
 		tool := protocol.NewTool("circadian_"+action,
-			protocol.WithDescription(action+" circadian lighting for Kitchen and Bedroom"))
+			protocol.WithDescription(action+" circadian lighting for Kitchen, Bedroom and Lounge"))
 		s.AddTool(tool, circadianHandler(e, action))
 	}
 }
