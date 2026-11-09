@@ -18,6 +18,6 @@ func namedColorToHex(color string) string {
 		"purple":  "#800080",
 		"pink":    "#FFC0CB",
 	}
-	
+
 	return colors[strings.ToLower(color)]
 }

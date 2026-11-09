@@ -30,7 +30,7 @@ type Effect struct {
 // Flashes the light with a specified color and returns to previous state
 func CreateFlashEffect(targetID string, color string, flashCount int, flashDuration time.Duration) *Sequence {
 	commands := []Command{}
-	
+
 	for i := 0; i < flashCount; i++ {
 		// Flash on with color
 		commands = append(commands, Command{
@@ -40,7 +40,7 @@ func CreateFlashEffect(targetID string, color string, flashCount int, flashDurat
 			Params: map[string]interface{}{"color": color},
 			Delay:  0,
 		})
-		
+
 		// Brief hold
 		commands = append(commands, Command{
 			Type:   "light",
@@ -48,7 +48,7 @@ func CreateFlashEffect(targetID string, color string, flashCount int, flashDurat
 			Target: targetID,
 			Delay:  flashDuration,
 		})
-		
+
 		// Turn off
 		commands = append(commands, Command{
 			Type:   "light",
@@ -57,7 +57,7 @@ func CreateFlashEffect(targetID string, color string, flashCount int, flashDurat
 			Delay:  flashDuration,
 		})
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Flash %s", targetID),
 		Commands: commands,
@@ -69,7 +69,7 @@ func CreateFlashEffect(targetID string, color string, flashCount int, flashDurat
 func CreatePulseEffect(targetID string, minBrightness, maxBrightness float64, pulseDuration time.Duration, pulseCount int) *Sequence {
 	commands := []Command{}
 	stepDuration := pulseDuration / 10 // 10 steps per pulse
-	
+
 	for i := 0; i < pulseCount; i++ {
 		// Fade up
 		for j := 0; j < 5; j++ {
@@ -82,7 +82,7 @@ func CreatePulseEffect(targetID string, minBrightness, maxBrightness float64, pu
 				Delay:  stepDuration,
 			})
 		}
-		
+
 		// Fade down
 		for j := 5; j > 0; j-- {
 			brightness := minBrightness + (maxBrightness-minBrightness)*float64(j)/5.0
@@ -95,7 +95,7 @@ func CreatePulseEffect(targetID string, minBrightness, maxBrightness float64, pu
 			})
 		}
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Pulse %s", targetID),
 		Commands: commands,
@@ -106,7 +106,7 @@ func CreatePulseEffect(targetID string, minBrightness, maxBrightness float64, pu
 // CreateColorLoopEffect creates a smooth color transition effect
 func CreateColorLoopEffect(targetID string, colors []string, transitionTime time.Duration) *Sequence {
 	commands := []Command{}
-	
+
 	for _, color := range colors {
 		commands = append(commands, Command{
 			Type:   "light",
@@ -116,7 +116,7 @@ func CreateColorLoopEffect(targetID string, colors []string, transitionTime time
 			Delay:  transitionTime,
 		})
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("ColorLoop %s", targetID),
 		Commands: commands,
@@ -128,7 +128,7 @@ func CreateColorLoopEffect(targetID string, colors []string, transitionTime time
 func CreateStrobeEffect(targetID string, color string, strobeRate time.Duration, duration time.Duration) *Sequence {
 	commands := []Command{}
 	iterations := int(duration / (strobeRate * 2))
-	
+
 	// Set color first
 	commands = append(commands, Command{
 		Type:   "light",
@@ -137,7 +137,7 @@ func CreateStrobeEffect(targetID string, color string, strobeRate time.Duration,
 		Params: map[string]interface{}{"color": color},
 		Delay:  0,
 	})
-	
+
 	for i := 0; i < iterations; i++ {
 		// Turn on
 		commands = append(commands, Command{
@@ -146,7 +146,7 @@ func CreateStrobeEffect(targetID string, color string, strobeRate time.Duration,
 			Target: targetID,
 			Delay:  strobeRate,
 		})
-		
+
 		// Turn off
 		commands = append(commands, Command{
 			Type:   "light",
@@ -155,7 +155,7 @@ func CreateStrobeEffect(targetID string, color string, strobeRate time.Duration,
 			Delay:  strobeRate,
 		})
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Strobe %s", targetID),
 		Commands: commands,
@@ -175,7 +175,7 @@ func CreateRainbowEffect(targetID string, stepDuration time.Duration) *Sequence 
 		"#4B0082", // Indigo
 		"#9400D3", // Violet
 	}
-	
+
 	return CreateColorLoopEffect(targetID, colors, stepDuration)
 }
 
@@ -189,12 +189,12 @@ func CreateAlertEffect(targetID string, alertColor string, normalColor string) *
 		{Type: "light", Action: "brightness", Target: targetID, Params: map[string]interface{}{"brightness": 100}, Delay: 100 * time.Millisecond},
 		{Type: "light", Action: "brightness", Target: targetID, Params: map[string]interface{}{"brightness": 20}, Delay: 100 * time.Millisecond},
 		{Type: "light", Action: "brightness", Target: targetID, Params: map[string]interface{}{"brightness": 100}, Delay: 100 * time.Millisecond},
-		
+
 		// Return to normal
 		{Type: "light", Action: "color", Target: targetID, Params: map[string]interface{}{"color": normalColor}, Delay: 500 * time.Millisecond},
 		{Type: "light", Action: "brightness", Target: targetID, Params: map[string]interface{}{"brightness": 50}, Delay: 0},
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Alert %s", targetID),
 		Commands: commands,
@@ -206,7 +206,7 @@ func CreateAlertEffect(targetID string, alertColor string, normalColor string) *
 func CreateFadeEffect(targetID string, startColor string, endColor string, startBrightness, endBrightness float64, duration time.Duration, steps int) *Sequence {
 	commands := []Command{}
 	stepDuration := duration / time.Duration(steps)
-	
+
 	// Set initial state
 	commands = append(commands, Command{
 		Type:   "light",
@@ -222,13 +222,13 @@ func CreateFadeEffect(targetID string, startColor string, endColor string, start
 		Params: map[string]interface{}{"brightness": startBrightness},
 		Delay:  0,
 	})
-	
+
 	// For simplicity, we'll just transition brightness and then change color
 	// A more sophisticated implementation would interpolate colors
 	for i := 1; i <= steps; i++ {
 		progress := float64(i) / float64(steps)
 		brightness := startBrightness + (endBrightness-startBrightness)*progress
-		
+
 		commands = append(commands, Command{
 			Type:   "light",
 			Action: "brightness",
@@ -237,7 +237,7 @@ func CreateFadeEffect(targetID string, startColor string, endColor string, start
 			Delay:  stepDuration,
 		})
 	}
-	
+
 	// Set final color
 	commands = append(commands, Command{
 		Type:   "light",
@@ -246,7 +246,7 @@ func CreateFadeEffect(targetID string, startColor string, endColor string, start
 		Params: map[string]interface{}{"color": endColor},
 		Delay:  0,
 	})
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Fade %s", targetID),
 		Commands: commands,
@@ -266,7 +266,7 @@ func CreateGroupEffect(effect *Sequence, groupID string) *Sequence {
 		}
 		groupCommands[i] = groupCmd
 	}
-	
+
 	return &Sequence{
 		Name:     fmt.Sprintf("Group %s - %s", groupID, effect.Name),
 		Commands: groupCommands,

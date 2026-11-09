@@ -11,30 +11,30 @@ import (
 
 // Entertainment represents an entertainment configuration
 type Entertainment struct {
-	ID               string                    `json:"id"`
-	IDV1             string                    `json:"id_v1"`
-	Type             string                    `json:"type"`
-	Metadata         Metadata                  `json:"metadata"`
-	ConfigurationType string                   `json:"configuration_type"`
-	Status           string                    `json:"status"`
-	ActiveStreamer   *ResourceIdentifier       `json:"active_streamer,omitempty"`
-	StreamProxy      StreamProxy               `json:"stream_proxy"`
-	Channels         []EntertainmentChannel    `json:"channels"`
-	Locations        *EntertainmentLocations   `json:"locations,omitempty"`
-	LightServices    []ResourceIdentifier      `json:"light_services"`
+	ID                string                  `json:"id"`
+	IDV1              string                  `json:"id_v1"`
+	Type              string                  `json:"type"`
+	Metadata          Metadata                `json:"metadata"`
+	ConfigurationType string                  `json:"configuration_type"`
+	Status            string                  `json:"status"`
+	ActiveStreamer    *ResourceIdentifier     `json:"active_streamer,omitempty"`
+	StreamProxy       StreamProxy             `json:"stream_proxy"`
+	Channels          []EntertainmentChannel  `json:"channels"`
+	Locations         *EntertainmentLocations `json:"locations,omitempty"`
+	LightServices     []ResourceIdentifier    `json:"light_services"`
 }
 
 // StreamProxy contains streaming proxy information
 type StreamProxy struct {
-	Mode string `json:"mode"`
+	Mode string             `json:"mode"`
 	Node ResourceIdentifier `json:"node"`
 }
 
 // EntertainmentChannel represents a channel configuration
 type EntertainmentChannel struct {
-	ChannelID     int                    `json:"channel_id"`
-	Position      EntertainmentPosition  `json:"position"`
-	Members       []ChannelMember        `json:"members"`
+	ChannelID int                   `json:"channel_id"`
+	Position  EntertainmentPosition `json:"position"`
+	Members   []ChannelMember       `json:"members"`
 }
 
 // ChannelMember represents a light in an entertainment channel
@@ -57,8 +57,8 @@ type EntertainmentLocations struct {
 
 // ServiceLocation represents a service's physical location
 type ServiceLocation struct {
-	Service   ResourceIdentifier    `json:"service"`
-	Position  EntertainmentPosition `json:"position"`
+	Service   ResourceIdentifier      `json:"service"`
+	Position  EntertainmentPosition   `json:"position"`
 	Positions []EntertainmentPosition `json:"positions,omitempty"`
 }
 
@@ -68,16 +68,16 @@ func (c *Client) GetEntertainmentConfigurations(ctx context.Context) ([]Entertai
 		Errors []Error         `json:"errors"`
 		Data   []Entertainment `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/entertainment_configuration", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -87,20 +87,20 @@ func (c *Client) GetEntertainmentConfiguration(ctx context.Context, id string) (
 		Errors []Error         `json:"errors"`
 		Data   []Entertainment `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, fmt.Sprintf("/resource/entertainment_configuration/%s", id), &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	if len(response.Data) == 0 {
 		return nil, fmt.Errorf("entertainment configuration not found")
 	}
-	
+
 	return &response.Data[0], nil
 }
 
@@ -124,15 +124,15 @@ func (c *Client) StopEntertainment(ctx context.Context, id string) error {
 
 // EntertainmentStreamer handles real-time color streaming via UDP
 type EntertainmentStreamer struct {
-	client        *Client
-	conn          *net.UDPConn
-	configID      string
-	config        *Entertainment
-	running       bool
-	mu            sync.RWMutex
-	updateRate    time.Duration
-	stopChan      chan struct{}
-	sequence      uint8
+	client     *Client
+	conn       *net.UDPConn
+	configID   string
+	config     *Entertainment
+	running    bool
+	mu         sync.RWMutex
+	updateRate time.Duration
+	stopChan   chan struct{}
+	sequence   uint8
 }
 
 // EntertainmentUpdate represents a color update for streaming
@@ -188,7 +188,7 @@ func (e *EntertainmentStreamer) Start(ctx context.Context) error {
 	}
 
 	e.running = true
-	
+
 	// Start the streaming loop
 	go e.streamingLoop()
 
@@ -240,11 +240,11 @@ func (e *EntertainmentStreamer) SendColors(updates []EntertainmentUpdate) error 
 func (e *EntertainmentStreamer) GetLights() []ResourceIdentifier {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	if e.config == nil {
 		return nil
 	}
-	
+
 	return e.config.LightServices
 }
 
@@ -272,37 +272,37 @@ func (e *EntertainmentStreamer) sendUDPPacket(updates []EntertainmentUpdate) err
 
 	// Build entertainment protocol packet
 	packet := make([]byte, 0, 1024)
-	
+
 	// Header: "HueStream" (9 bytes)
 	packet = append(packet, []byte("HueStream")...)
-	
+
 	// API version (2 bytes) - version 2.0
 	packet = append(packet, 0x02, 0x00)
-	
+
 	// Sequence number (1 byte)
 	e.sequence++
 	packet = append(packet, e.sequence)
-	
+
 	// Reserved (2 bytes)
 	packet = append(packet, 0x00, 0x00)
-	
+
 	// Color mode (1 byte) - RGB
 	packet = append(packet, 0x01)
-	
+
 	// Reserved (1 byte)
 	packet = append(packet, 0x00)
-	
+
 	// Create color data map
 	colorData := make(map[string]EntertainmentUpdate)
 	for _, update := range updates {
 		colorData[update.LightID] = update
 	}
-	
+
 	// Add color data for each channel
 	for _, channel := range e.config.Channels {
 		for _, member := range channel.Members {
 			lightID := member.Service.RID
-			
+
 			update, exists := colorData[lightID]
 			if !exists {
 				// Default to off
@@ -313,27 +313,27 @@ func (e *EntertainmentStreamer) sendUDPPacket(updates []EntertainmentUpdate) err
 					Blue:    0,
 				}
 			}
-			
+
 			// Channel ID (2 bytes)
 			channelBytes := make([]byte, 2)
 			binary.LittleEndian.PutUint16(channelBytes, uint16(channel.ChannelID))
 			packet = append(packet, channelBytes...)
-			
+
 			// RGB values (6 bytes total - 2 bytes each)
 			redBytes := make([]byte, 2)
 			greenBytes := make([]byte, 2)
 			blueBytes := make([]byte, 2)
-			
+
 			binary.LittleEndian.PutUint16(redBytes, update.Red)
 			binary.LittleEndian.PutUint16(greenBytes, update.Green)
 			binary.LittleEndian.PutUint16(blueBytes, update.Blue)
-			
+
 			packet = append(packet, redBytes...)
 			packet = append(packet, greenBytes...)
 			packet = append(packet, blueBytes...)
 		}
 	}
-	
+
 	// Send packet
 	_, err := e.conn.Write(packet)
 	return err

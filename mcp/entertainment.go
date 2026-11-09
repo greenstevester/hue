@@ -29,7 +29,7 @@ func HandleListEntertainment(hueClient *client.Client) server.ToolHandlerFunc {
 			result.WriteString(fmt.Sprintf("  Status: %s\n", config.Status))
 			result.WriteString(fmt.Sprintf("  Channels: %d\n", len(config.Channels)))
 			result.WriteString(fmt.Sprintf("  Lights: %d\n", len(config.LightServices)))
-			
+
 			if config.ActiveStreamer != nil {
 				result.WriteString(fmt.Sprintf("  Active Streamer: %s\n", config.ActiveStreamer.RID))
 			}
@@ -85,7 +85,7 @@ var (
 func HandleStartStreaming(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		
+
 		configID, ok := args["config_id"].(string)
 		if !ok || configID == "" {
 			return mcp.NewToolResultError("config_id is required"), nil
@@ -132,7 +132,7 @@ func HandleStartStreaming(hueClient *client.Client) server.ToolHandlerFunc {
 func HandleStopStreaming(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		
+
 		configID, ok := args["config_id"].(string)
 		if !ok || configID == "" {
 			return mcp.NewToolResultError("config_id is required"), nil
@@ -162,7 +162,7 @@ func HandleStopStreaming(hueClient *client.Client) server.ToolHandlerFunc {
 func HandleSendColors(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		
+
 		configID, ok := args["config_id"].(string)
 		if !ok || configID == "" {
 			return mcp.NewToolResultError("config_id is required"), nil
@@ -228,7 +228,7 @@ func HandleStreamingStatus(hueClient *client.Client) server.ToolHandlerFunc {
 func HandleRainbowEffect(hueClient *client.Client) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args := request.GetArguments()
-		
+
 		configID, ok := args["config_id"].(string)
 		if !ok || configID == "" {
 			return mcp.NewToolResultError("config_id is required"), nil
@@ -268,45 +268,45 @@ func HandleRainbowEffect(hueClient *client.Client) server.ToolHandlerFunc {
 // parseColorUpdates parses color updates from string format
 func parseColorUpdates(colorsStr string) ([]client.EntertainmentUpdate, error) {
 	var updates []client.EntertainmentUpdate
-	
+
 	pairs := strings.Split(colorsStr, ";")
 	for _, pair := range pairs {
 		if pair == "" {
 			continue
 		}
-		
+
 		parts := strings.Split(pair, ":")
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid color format: %s", pair)
 		}
-		
+
 		lightID := strings.TrimSpace(parts[0])
 		colorStr := strings.TrimSpace(parts[1])
-		
+
 		// Parse RGB values
 		rgbParts := strings.Split(colorStr, ",")
 		if len(rgbParts) != 3 {
 			return nil, fmt.Errorf("invalid RGB format: %s", colorStr)
 		}
-		
+
 		r, err := strconv.Atoi(strings.TrimSpace(rgbParts[0]))
 		if err != nil || r < 0 || r > 255 {
 			return nil, fmt.Errorf("invalid red value: %s", rgbParts[0])
 		}
-		
+
 		g, err := strconv.Atoi(strings.TrimSpace(rgbParts[1]))
 		if err != nil || g < 0 || g > 255 {
 			return nil, fmt.Errorf("invalid green value: %s", rgbParts[1])
 		}
-		
+
 		b, err := strconv.Atoi(strings.TrimSpace(rgbParts[2]))
 		if err != nil || b < 0 || b > 255 {
 			return nil, fmt.Errorf("invalid blue value: %s", rgbParts[2])
 		}
-		
+
 		// Convert to 16-bit values
 		red, green, blue := client.RGBToUint16(uint8(r), uint8(g), uint8(b))
-		
+
 		updates = append(updates, client.EntertainmentUpdate{
 			LightID: lightID,
 			Red:     red,
@@ -314,7 +314,7 @@ func parseColorUpdates(colorsStr string) ([]client.EntertainmentUpdate, error) {
 			Blue:    blue,
 		})
 	}
-	
+
 	return updates, nil
 }
 
@@ -323,28 +323,28 @@ func runRainbowEffect(streamer *client.EntertainmentStreamer, lights []client.Re
 	start := time.Now()
 	ticker := time.NewTicker(50 * time.Millisecond) // 20fps
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
 			if time.Since(start) >= duration {
 				return
 			}
-			
+
 			// Calculate rainbow colors
 			progress := float64(time.Since(start)) / float64(duration)
 			var updates []client.EntertainmentUpdate
-			
+
 			for i, light := range lights {
 				// Create rainbow effect with phase offset for each light
 				hueValue := (progress + float64(i)*0.1) * 360
 				for hueValue >= 360 {
 					hueValue -= 360
 				}
-				
+
 				r, g, b := hsvToRGB(hueValue, 1.0, 1.0)
 				red, green, blue := client.FloatRGBToUint16(r, g, b)
-				
+
 				updates = append(updates, client.EntertainmentUpdate{
 					LightID: light.RID,
 					Red:     red,
@@ -352,7 +352,7 @@ func runRainbowEffect(streamer *client.EntertainmentStreamer, lights []client.Re
 					Blue:    blue,
 				})
 			}
-			
+
 			streamer.SendColors(updates)
 		}
 	}
@@ -361,11 +361,11 @@ func runRainbowEffect(streamer *client.EntertainmentStreamer, lights []client.Re
 // hsvToRGB converts HSV color to RGB
 func hsvToRGB(h, s, v float64) (float64, float64, float64) {
 	c := v * s
-	x := c * (1 - abs(mod(h/60, 2) - 1))
+	x := c * (1 - abs(mod(h/60, 2)-1))
 	m := v - c
-	
+
 	var r, g, b float64
-	
+
 	if h >= 0 && h < 60 {
 		r, g, b = c, x, 0
 	} else if h >= 60 && h < 120 {
@@ -379,7 +379,7 @@ func hsvToRGB(h, s, v float64) (float64, float64, float64) {
 	} else {
 		r, g, b = c, 0, x
 	}
-	
+
 	return r + m, g + m, b + m
 }
 

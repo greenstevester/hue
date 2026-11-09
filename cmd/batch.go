@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/kungfusheep/hue/mcp"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -34,7 +34,7 @@ Example JSON format:
 You can provide commands inline or from a file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var commandsJSON string
-		
+
 		// Read from file if specified
 		if batchFile != "" {
 			data, err := os.ReadFile(batchFile)
@@ -48,13 +48,13 @@ You can provide commands inline or from a file.`,
 		} else {
 			return fmt.Errorf("provide commands as JSON string or use --file flag")
 		}
-		
+
 		// Parse commands
 		var commands []map[string]interface{}
 		if err := json.Unmarshal([]byte(commandsJSON), &commands); err != nil {
 			return fmt.Errorf("failed to parse commands JSON: %v", err)
 		}
-		
+
 		// Save to cache if requested
 		if batchCacheName != "" {
 			err := mcp.GetSceneCache().SaveScene(batchCacheName, commands, batchDelay, batchDescription)
@@ -63,7 +63,7 @@ You can provide commands inline or from a file.`,
 			}
 			printMessage("Scene cached as '%s'", batchCacheName)
 		}
-		
+
 		// Execute commands
 		if batchAsync {
 			// Async execution (fire and forget)
@@ -75,7 +75,7 @@ You can provide commands inline or from a file.`,
 			// Sync execution - execute each command
 			printMessage("Executing %d commands...", len(commands))
 			results := mcp.ExecuteBatch(cmd.Context(), hueClient, commands, batchDelay)
-			
+
 			// Report results
 			successful := 0
 			for _, result := range results {
@@ -83,9 +83,9 @@ You can provide commands inline or from a file.`,
 					successful++
 				}
 			}
-			
+
 			printMessage("Batch completed: %d/%d successful", successful, len(commands))
-			
+
 			// Show failures if any
 			if successful < len(commands) {
 				fmt.Println("\nFailed commands:")
@@ -96,7 +96,7 @@ You can provide commands inline or from a file.`,
 				}
 			}
 		}
-		
+
 		return nil
 	},
 }
@@ -107,6 +107,6 @@ func init() {
 	batchCmd.Flags().StringVar(&batchCacheName, "cache-name", "", "Save this batch as a cached scene")
 	batchCmd.Flags().StringVar(&batchDescription, "cache-desc", "", "Description for cached scene")
 	batchCmd.Flags().StringVarP(&batchFile, "file", "f", "", "Read commands from JSON file")
-	
+
 	rootCmd.AddCommand(batchCmd)
 }

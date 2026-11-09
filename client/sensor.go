@@ -9,18 +9,18 @@ import (
 
 // Motion represents a motion sensor resource
 type Motion struct {
-	ID       string             `json:"id"`
-	IDV1     string             `json:"id_v1"`
-	Type     string             `json:"type"`
-	Owner    ResourceIdentifier `json:"owner"`
-	Enabled  bool               `json:"enabled"`
-	Motion   MotionReport       `json:"motion"`
+	ID      string             `json:"id"`
+	IDV1    string             `json:"id_v1"`
+	Type    string             `json:"type"`
+	Owner   ResourceIdentifier `json:"owner"`
+	Enabled bool               `json:"enabled"`
+	Motion  MotionReport       `json:"motion"`
 }
 
 // MotionReport contains motion detection data
 type MotionReport struct {
-	Motion      bool   `json:"motion"`
-	MotionValid bool   `json:"motion_valid"`
+	Motion       bool `json:"motion"`
+	MotionValid  bool `json:"motion_valid"`
 	MotionReport *struct {
 		Changed string `json:"changed"`
 		Motion  bool   `json:"motion"`
@@ -41,8 +41,8 @@ type Temperature struct {
 
 // TemperatureReport contains temperature data
 type TemperatureReport struct {
-	Temperature      float64 `json:"temperature"`
-	TemperatureValid bool    `json:"temperature_valid"`
+	Temperature       float64 `json:"temperature"`
+	TemperatureValid  bool    `json:"temperature_valid"`
 	TemperatureReport *struct {
 		Changed     string  `json:"changed"`
 		Temperature float64 `json:"temperature"`
@@ -63,8 +63,8 @@ type LightLevel struct {
 
 // LightLevelReport contains light level data
 type LightLevelReport struct {
-	LightLevel      int  `json:"light_level"`
-	LightLevelValid bool `json:"light_level_valid"`
+	LightLevel       int  `json:"light_level"`
+	LightLevelValid  bool `json:"light_level_valid"`
 	LightLevelReport *struct {
 		Changed    string `json:"changed"`
 		LightLevel int    `json:"light_level"`
@@ -75,12 +75,12 @@ type LightLevelReport struct {
 
 // Button represents a button resource (like dimmer switches)
 type Button struct {
-	ID         string              `json:"id"`
-	IDV1       string              `json:"id_v1"`
-	Type       string              `json:"type"`
-	Owner      ResourceIdentifier  `json:"owner"`
-	Metadata   Metadata            `json:"metadata"`
-	Button     ButtonReport        `json:"button"`
+	ID       string             `json:"id"`
+	IDV1     string             `json:"id_v1"`
+	Type     string             `json:"type"`
+	Owner    ResourceIdentifier `json:"owner"`
+	Metadata Metadata           `json:"metadata"`
+	Button   ButtonReport       `json:"button"`
 }
 
 // ButtonReport contains button state
@@ -89,7 +89,7 @@ type ButtonReport struct {
 		Updated string `json:"updated"`
 		Event   string `json:"event"`
 	} `json:"button_report,omitempty"`
-	RepeatInterval int    `json:"repeat_interval"`
+	RepeatInterval int      `json:"repeat_interval"`
 	EventValues    []string `json:"event_values"`
 }
 
@@ -99,16 +99,16 @@ func (c *Client) GetMotionSensors(ctx context.Context) ([]Motion, error) {
 		Errors []Error  `json:"errors"`
 		Data   []Motion `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/motion", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -118,16 +118,16 @@ func (c *Client) GetTemperatureSensors(ctx context.Context) ([]Temperature, erro
 		Errors []Error       `json:"errors"`
 		Data   []Temperature `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/temperature", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -137,16 +137,16 @@ func (c *Client) GetLightLevelSensors(ctx context.Context) ([]LightLevel, error)
 		Errors []Error      `json:"errors"`
 		Data   []LightLevel `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/light_level", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -156,15 +156,15 @@ func (c *Client) GetButtons(ctx context.Context) ([]Button, error) {
 		Errors []Error  `json:"errors"`
 		Data   []Button `json:"data"`
 	}
-	
+
 	err := c.getJSON(ctx, "/resource/button", &response)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("API error: %s", response.Errors[0].Description)
 	}
-	
+
 	return response.Data, nil
 }

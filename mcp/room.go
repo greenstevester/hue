@@ -22,7 +22,7 @@ func HandleListRooms(hueClient *client.Client) server.ToolHandlerFunc {
 		result.WriteString(fmt.Sprintf("Found %d rooms:\n", len(rooms)))
 		for _, room := range rooms {
 			result.WriteString(fmt.Sprintf("- %s (ID: %s)\n", room.Metadata.Name, room.ID))
-			
+
 			// List lights in the room
 			for _, child := range room.Children {
 				if child.RType == "light" {
@@ -64,11 +64,11 @@ func HandleListDevices(hueClient *client.Client) server.ToolHandlerFunc {
 		var result strings.Builder
 		result.WriteString(fmt.Sprintf("Found %d devices:\n", len(devices)))
 		for _, device := range devices {
-			result.WriteString(fmt.Sprintf("- %s (%s): %s\n", 
-				device.Metadata.Name, 
+			result.WriteString(fmt.Sprintf("- %s (%s): %s\n",
+				device.Metadata.Name,
 				device.ProductData.ProductName,
 				device.ID))
-			
+
 			if device.PowerState != nil {
 				result.WriteString(fmt.Sprintf("  Power: %s", device.PowerState.PowerState))
 				if device.PowerState.BatteryLevel > 0 {
@@ -103,7 +103,7 @@ func HandleGetDevice(hueClient *client.Client) server.ToolHandlerFunc {
 		result.WriteString(fmt.Sprintf("Manufacturer: %s\n", device.ProductData.ManufacturerName))
 		result.WriteString(fmt.Sprintf("Type: %s\n", device.ProductData.ProductArchetype))
 		result.WriteString(fmt.Sprintf("Software Version: %s\n", device.ProductData.SoftwareVersion))
-		
+
 		if device.PowerState != nil {
 			result.WriteString(fmt.Sprintf("Power State: %s\n", device.PowerState.PowerState))
 			if device.PowerState.BatteryLevel > 0 {
