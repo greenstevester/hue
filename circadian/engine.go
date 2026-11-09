@@ -616,6 +616,45 @@ func (e *Engine) reconcileInventory(managed []ManagedLight) error {
 	return nil
 }
 
+// lightChanges combines each light's items within one event. The Bridge reports one change as
+// separate items, such as {on}, {dimming} and {color}, and a plain switch-on can only be told
+// apart from a switch-on with a brightness or colour of its own when they are read together.
+func lightChanges(items []client.EventData) []client.EventData {
+	var result []client.EventData
+	position := map[string]int{}
+	for _, d := range items {
+		i, seen := position[d.ID]
+		if d.Type != "light" || !seen {
+			if d.Type == "light" {
+				position[d.ID] = len(result)
+			}
+			result = append(result, d)
+			continue
+		}
+		merged := &result[i]
+		if d.On != nil {
+			merged.On = d.On
+		}
+		if d.Dimming != nil {
+			merged.Dimming = d.Dimming
+		}
+		if d.Color != nil {
+			merged.Color = d.Color
+		}
+		// A null temperature rides along with colour; it must not replace a real one.
+		if d.ColorTemperature != nil && (merged.ColorTemperature == nil || d.ColorTemperature.Mirek > 0) {
+			merged.ColorTemperature = d.ColorTemperature
+		}
+		if d.Effects != nil {
+			merged.Effects = d.Effects
+		}
+		if d.Mode != nil {
+			merged.Mode = d.Mode
+		}
+	}
+	return result
+}
+
 func run(
 	ctx context.Context, c *client.Client, e *Engine,
 	logf func(string, ...interface{}), ticks <-chan time.Time,
@@ -718,7 +757,7 @@ func run(
 			if !ok {
 				return closed()
 			}
-			for _, d := range event.Data {
+			for _, d := range lightChanges(event.Data) {
 				// Scenes, zones and automations come and go without changing which lights are managed.
 				if (event.Type == "add" || event.Type == "delete") && d.Type == "light" {
 					e.invalidateInventory()

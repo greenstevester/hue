@@ -25,7 +25,8 @@ func eventLoopFixture(t *testing.T) (chan<- string, chan<- time.Time, *Engine) {
 	}
 	lights := []client.Light{
 		{ID: "k", On: client.OnState{On: true}, Dimming: client.Dimming{Brightness: 50}},
-		{ID: "b", On: client.OnState{On: true}, Dimming: client.Dimming{Brightness: 50}},
+		// "b" can show colour, so no phase makes the schedule switch it off.
+		{ID: "b", On: client.OnState{On: true}, Dimming: client.Dimming{Brightness: 50}, Color: &client.Color{}},
 	}
 	pushed := make(chan string, 10)
 	refreshed := make(chan struct{}, 10)
@@ -154,6 +155,34 @@ func TestStoppingTheEventLoopIsNotAFailure(t *testing.T) {
 			// Cleanups run last-registered first: this releases the lock 200 ms after the
 			// fixture's own cleanup has cancelled the loop.
 			t.Cleanup(func() { time.AfterFunc(200*time.Millisecond, e.mu.Unlock) })
+		})
+	}
+}
+
+func TestSwitchOnWithItsOwnBrightnessHoldsWhateverOrderTheBridgeSendsIt(t *testing.T) {
+	// The Bridge reports one change as separate items in one event; on 9 November a light switched
+	// on at 40% arrived as {on}, {dimming}, {color}. Read alone, the "on" item looks like a plain
+	// switch-on, which would hand the light back to the schedule.
+	for name, items := range map[string]string{
+		"on first":  `{"id":"b","type":"light","on":{"on":true}},{"id":"b","type":"light","dimming":{"brightness":20}}`,
+		"on second": `{"id":"b","type":"light","dimming":{"brightness":20}},{"id":"b","type":"light","on":{"on":true}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			pushed, _, e := eventLoopFixture(t)
+			pushed <- `[{"type":"update","data":[{"id":"b","type":"light","on":{"on":false}}]}]`
+			pushed <- `[{"type":"update","data":[` + items + `]}]`
+			var light LightStatus
+			waitFor(t, func() bool {
+				for _, light = range e.Status().Lights {
+					if light.ID == "b" && light.On && light.Brightness == 20 {
+						return true
+					}
+				}
+				return false
+			})
+			if light.HoldUntil.IsZero() {
+				t.Fatal("light switched on at a brightness of its own was handed back to the schedule")
+			}
 		})
 	}
 }
