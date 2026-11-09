@@ -465,7 +465,8 @@ func TestSwitchingOnFromOutsideTakesTheScheduleAtOnce(t *testing.T) {
 	// A light comes back on showing whatever it had when it went off, such as last night's deep red.
 	e, b := whiteBulbEngine(t, "2026-01-10T12:00:00+01:00", false)
 	start(t, e)
-	// The Bridge reports the switch-on and repeats the brightness the light had when it went off.
+	// The Bridge reports a plain switch-on as {"on":{"on":true}} alone (seen live on 9 November).
+	// An unchanged brightness alongside it must not count as a choice either.
 	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: true},
 		Dimming: &client.Dimming{Brightness: 50}})
 	if !e.Status().Lights[0].HoldUntil.IsZero() {
