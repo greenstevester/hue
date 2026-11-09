@@ -57,18 +57,18 @@ var lightOnCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve light name to ID
 		lightID, err := resolveLightID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.TurnOnLight(ctx, lightID)
 		if err != nil {
 			return fmt.Errorf("failed to turn on light: %w", err)
 		}
-		
+
 		printMessage("Light %s turned on", args[0])
 		return nil
 	},
@@ -81,18 +81,18 @@ var lightOffCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve light name to ID
 		lightID, err := resolveLightID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.TurnOffLight(ctx, lightID)
 		if err != nil {
 			return fmt.Errorf("failed to turn off light: %w", err)
 		}
-		
+
 		printMessage("Light %s turned off", args[0])
 		return nil
 	},
@@ -107,24 +107,24 @@ var lightColorCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		color := args[1]
 		ctx := context.Background()
-		
+
 		// Resolve light name to ID
 		lightID, err := resolveLightID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		// Convert color name to hex if needed
 		hexColor := namedColorToHex(color)
 		if hexColor == "" {
 			hexColor = color
 		}
-		
+
 		err = hueClient.SetLightColor(ctx, lightID, hexColor)
 		if err != nil {
 			return fmt.Errorf("failed to set color: %w", err)
 		}
-		
+
 		printMessage("Light %s color set to %s", args[0], color)
 		return nil
 	},
@@ -140,24 +140,24 @@ var lightBrightnessCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("invalid brightness value: %w", err)
 		}
-		
+
 		if brightness < 0 || brightness > 100 {
 			return fmt.Errorf("brightness must be between 0 and 100")
 		}
-		
+
 		ctx := context.Background()
-		
+
 		// Resolve light name to ID
 		lightID, err := resolveLightID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.SetLightBrightness(ctx, lightID, brightness)
 		if err != nil {
 			return fmt.Errorf("failed to set brightness: %w", err)
 		}
-		
+
 		printMessage("Light %s brightness set to %.0f%%", args[0], brightness)
 		return nil
 	},
@@ -170,23 +170,23 @@ var lightStateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve light name to ID
 		lightID, err := resolveLightID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		light, err := hueClient.GetLight(ctx, lightID)
 		if err != nil {
 			return fmt.Errorf("failed to get light: %w", err)
 		}
-		
+
 		if jsonOutput {
 			printJSON(light)
 			return nil
 		}
-		
+
 		// Human-readable output
 		fmt.Printf("Light: %s\n", light.Metadata.Name)
 		fmt.Printf("Type: %s\n", light.Metadata.Archetype)
@@ -203,7 +203,7 @@ var lightStateCmd = &cobra.Command{
 		if light.Effects != nil && light.Effects.Effect != "" {
 			fmt.Printf("Effect: %s\n", light.Effects.Effect)
 		}
-		
+
 		return nil
 	},
 }
@@ -216,7 +216,7 @@ func init() {
 	lightsCmd.AddCommand(lightColorCmd)
 	lightsCmd.AddCommand(lightBrightnessCmd)
 	lightsCmd.AddCommand(lightStateCmd)
-	
+
 	// Add to root
 	rootCmd.AddCommand(lightsCmd)
 }

@@ -29,7 +29,7 @@ func HandleListMotionSensors(hueClient *client.Client) server.ToolHandlerFunc {
 			if !sensor.Enabled {
 				enabled = "disabled"
 			}
-			result.WriteString(fmt.Sprintf("- %s: %s (%s) (ID: %s)\n", 
+			result.WriteString(fmt.Sprintf("- %s: %s (%s) (ID: %s)\n",
 				sensor.ID, status, enabled, sensor.IDV1))
 		}
 
@@ -52,11 +52,11 @@ func HandleListTemperatureSensors(hueClient *client.Client) server.ToolHandlerFu
 			if !sensor.Enabled {
 				enabled = "disabled"
 			}
-			
+
 			tempC := sensor.Temperature.Temperature
 			tempF := tempC*9/5 + 32
-			
-			result.WriteString(fmt.Sprintf("- %s: %.1f°C (%.1f°F) (%s) (ID: %s)\n", 
+
+			result.WriteString(fmt.Sprintf("- %s: %.1f°C (%.1f°F) (%s) (ID: %s)\n",
 				sensor.ID, tempC, tempF, enabled, sensor.IDV1))
 		}
 
@@ -79,11 +79,11 @@ func HandleListLightLevelSensors(hueClient *client.Client) server.ToolHandlerFun
 			if !sensor.Enabled {
 				enabled = "disabled"
 			}
-			
+
 			// Convert light level to lux (approximate)
 			lux := float64(sensor.LightLevel.LightLevel)
-			
-			result.WriteString(fmt.Sprintf("- %s: %.0f lux (%s) (ID: %s)\n", 
+
+			result.WriteString(fmt.Sprintf("- %s: %.0f lux (%s) (ID: %s)\n",
 				sensor.ID, lux, enabled, sensor.IDV1))
 		}
 
@@ -106,12 +106,12 @@ func HandleListButtons(hueClient *client.Client) server.ToolHandlerFunc {
 			if button.Button.ButtonReport != nil {
 				lastEvent = button.Button.ButtonReport.Event
 			}
-			
-			result.WriteString(fmt.Sprintf("- %s: Last event: %s (ID: %s)\n", 
+
+			result.WriteString(fmt.Sprintf("- %s: Last event: %s (ID: %s)\n",
 				button.Metadata.Name, lastEvent, button.ID))
-			
+
 			if len(button.Button.EventValues) > 0 {
-				result.WriteString(fmt.Sprintf("  Supported events: %s\n", 
+				result.WriteString(fmt.Sprintf("  Supported events: %s\n",
 					strings.Join(button.Button.EventValues, ", ")))
 			}
 		}

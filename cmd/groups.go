@@ -54,18 +54,18 @@ var groupOnCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve group name to ID
 		groupID, err := resolveGroupID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.TurnOnGroup(ctx, groupID)
 		if err != nil {
 			return fmt.Errorf("failed to turn on group: %w", err)
 		}
-		
+
 		printMessage("Group %s turned on", args[0])
 		return nil
 	},
@@ -78,18 +78,18 @@ var groupOffCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		
+
 		// Resolve group name to ID
 		groupID, err := resolveGroupID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.TurnOffGroup(ctx, groupID)
 		if err != nil {
 			return fmt.Errorf("failed to turn off group: %w", err)
 		}
-		
+
 		printMessage("Group %s turned off", args[0])
 		return nil
 	},
@@ -103,24 +103,24 @@ var groupColorCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		color := args[1]
 		ctx := context.Background()
-		
+
 		// Resolve group name to ID
 		groupID, err := resolveGroupID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		// Convert color name to hex if needed
 		hexColor := namedColorToHex(color)
 		if hexColor == "" {
 			hexColor = color
 		}
-		
+
 		err = hueClient.SetGroupColor(ctx, groupID, hexColor)
 		if err != nil {
 			return fmt.Errorf("failed to set color: %w", err)
 		}
-		
+
 		printMessage("Group %s color set to %s", args[0], color)
 		return nil
 	},
@@ -136,24 +136,24 @@ var groupBrightnessCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("invalid brightness value: %w", err)
 		}
-		
+
 		if brightness < 0 || brightness > 100 {
 			return fmt.Errorf("brightness must be between 0 and 100")
 		}
-		
+
 		ctx := context.Background()
-		
+
 		// Resolve group name to ID
 		groupID, err := resolveGroupID(ctx, args[0])
 		if err != nil {
 			return err
 		}
-		
+
 		err = hueClient.SetGroupBrightness(ctx, groupID, brightness)
 		if err != nil {
 			return fmt.Errorf("failed to set brightness: %w", err)
 		}
-		
+
 		printMessage("Group %s brightness set to %.0f%%", args[0], brightness)
 		return nil
 	},
@@ -181,7 +181,7 @@ var listRoomsCmd = &cobra.Command{
 			fmt.Printf("🏠 %s\n", room.Metadata.Name)
 			fmt.Printf("   ID: %s\n", room.ID)
 			fmt.Printf("   Archetype: %s\n", room.Metadata.Archetype)
-			
+
 			// List devices in room
 			if len(room.Children) > 0 {
 				fmt.Printf("   Devices: %d\n", len(room.Children))
@@ -203,7 +203,7 @@ func init() {
 	groupsCmd.AddCommand(groupColorCmd)
 	groupsCmd.AddCommand(groupBrightnessCmd)
 	groupsCmd.AddCommand(listRoomsCmd)
-	
+
 	// Add to root
 	rootCmd.AddCommand(groupsCmd)
 }

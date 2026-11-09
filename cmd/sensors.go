@@ -37,14 +37,14 @@ var listMotionSensorsCmd = &cobra.Command{
 			if sensor.Motion.Motion {
 				motionState = "🚶 Motion detected"
 			}
-			
+
 			fmt.Printf("👁️  Motion Sensor %s\n", sensor.ID)
 			fmt.Printf("   State: %s\n", motionState)
 			fmt.Printf("   Valid: %v\n", sensor.Motion.MotionValid)
 			fmt.Printf("   Enabled: %v\n", sensor.Enabled)
 			fmt.Println()
 		}
-		
+
 		return nil
 	},
 }
@@ -69,14 +69,14 @@ var listTemperatureSensorsCmd = &cobra.Command{
 		fmt.Printf("Found %d temperature sensors:\n\n", len(sensors))
 		for _, sensor := range sensors {
 			temp := sensor.Temperature.Temperature / 100.0 // Convert to Celsius
-			
+
 			fmt.Printf("🌡️  Temperature Sensor %s\n", sensor.ID)
 			fmt.Printf("   Temperature: %.1f°C (%.1f°F)\n", temp, temp*9/5+32)
 			fmt.Printf("   Valid: %v\n", sensor.Temperature.TemperatureValid)
 			fmt.Printf("   Enabled: %v\n", sensor.Enabled)
 			fmt.Println()
 		}
-		
+
 		return nil
 	},
 }
@@ -106,7 +106,7 @@ var listLightSensorsCmd = &cobra.Command{
 			fmt.Printf("   Enabled: %v\n", sensor.Enabled)
 			fmt.Println()
 		}
-		
+
 		return nil
 	},
 }
@@ -116,7 +116,7 @@ func init() {
 	sensorsCmd.AddCommand(listMotionSensorsCmd)
 	sensorsCmd.AddCommand(listTemperatureSensorsCmd)
 	sensorsCmd.AddCommand(listLightSensorsCmd)
-	
+
 	// Add to root
 	rootCmd.AddCommand(sensorsCmd)
 }
