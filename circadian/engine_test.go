@@ -460,3 +460,71 @@ func TestLightReturnsToScheduleAfterEffectAndHoldEnd(t *testing.T) {
 		t.Fatal("light stayed off the schedule after its effect and hold ended")
 	}
 }
+
+func TestSwitchingOnFromOutsideTakesTheScheduleAtOnce(t *testing.T) {
+	// A light comes back on showing whatever it had when it went off, such as last night's deep red.
+	e, b := whiteBulbEngine(t, "2026-01-10T12:00:00+01:00", false)
+	start(t, e)
+	// The Bridge reports the switch-on and repeats the brightness the light had when it went off.
+	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: true},
+		Dimming: &client.Dimming{Brightness: 50}})
+	if !e.Status().Lights[0].HoldUntil.IsZero() {
+		t.Fatal("switching a light on held its old colour for two hours")
+	}
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 1 {
+		t.Fatalf("switched-on light did not get the daytime target: %d writes", len(b.writes))
+	}
+	w := b.writes[0]
+	if w.ColorTemperature == nil || w.ColorTemperature.Mirek != 286 || w.Dimming == nil || w.Dimming.Brightness != 85 {
+		t.Fatalf("switched-on light got %+v, want daytime 3500 K at 85%%", w)
+	}
+	if w.Dynamics == nil || w.Dynamics.Duration != 1000 {
+		t.Fatalf("switched-on light should reach the target within a second, got %+v", w.Dynamics)
+	}
+}
+
+func TestSwitchingOnEndsTheHoldLeftBySwitchingOff(t *testing.T) {
+	e, b, now := engineFixture(t)
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: false}}) // someone switches it off
+	*now = now.Add(30 * time.Minute)
+	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: true}}) // and on again
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 2 {
+		t.Fatalf("light switched off and on again stayed on hold: %d writes", len(b.writes))
+	}
+}
+
+func TestSwitchingOnWithAChosenLookStillHolds(t *testing.T) {
+	e, b := whiteBulbEngine(t, "2026-01-10T12:00:00+01:00", false)
+	start(t, e)
+	// A scene or a dimmer switch turns the light on at a brightness of its own.
+	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: true},
+		Dimming: &client.Dimming{Brightness: 20}})
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if e.Status().Lights[0].HoldUntil.IsZero() || len(b.writes) != 0 {
+		t.Fatalf("light switched on with its own brightness was changed: %d writes", len(b.writes))
+	}
+}
+
+func TestWhiteBulbSwitchedOnDuringAColourPhaseStaysOn(t *testing.T) {
+	// The evening phase is colour only, which a white bulb cannot show, so the schedule would switch it off.
+	e, b := whiteBulbEngine(t, "2026-01-10T20:00:00+01:00", false)
+	start(t, e)
+	e.Observe(client.EventData{ID: "k", Type: "light", On: &client.OnState{On: true}})
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if e.Status().Lights[0].HoldUntil.IsZero() || len(b.writes) != 0 {
+		t.Fatalf("white bulb switched on in the evening was switched off again: %+v", b.writes)
+	}
+}
