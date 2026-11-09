@@ -1,9 +1,18 @@
-# Kitchen and bedroom lighting
+# Kitchen, bedroom and lounge lighting
 
-Circadian control is opt-in and limited to rooms named Kitchen and Bedroom, matched without regard
-to letter case. Both must resolve exactly once. No other room is eligible. Optional room identifiers
-must match the corresponding room name. Room membership is checked again during operation;
-changes require a restart and fresh discovery.
+Circadian control is opt-in and limited to rooms named Kitchen, Bedroom and Lounge, matched without
+regard to letter case. Kitchen and Bedroom are required and Lounge is optional; each must resolve
+exactly once. No other room is eligible. Optional room identifiers must match the corresponding room
+name. A room entry may also list light identifiers in `lights`, and the controller then touches only
+those lights in that room. If a listed light is not in the room, the controller refuses to start.
+To control only the lounge's floor box:
+
+```json
+{"name": "Lounge", "id": "a51889a4-7422-4ec6-8cfb-932a8e4a3e3b",
+ "lights": ["6070f307-a6ff-4dc5-8d07-e440cf95862a"]}
+```
+
+Room membership is checked again during operation; changes require a restart and fresh discovery.
 
 ## Try the schedule without changing lights
 

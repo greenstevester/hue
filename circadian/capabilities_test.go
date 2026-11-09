@@ -2,6 +2,7 @@ package circadian
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kungfusheep/hue/client"
 )
@@ -63,5 +64,52 @@ func TestSelectLightsNeverIncludesOtherRooms(t *testing.T) {
 	rooms = append(rooms, rooms[0])
 	if _, err := SelectLights(c, rooms, devices, lights); err == nil {
 		t.Fatal("ambiguous kitchen accepted")
+	}
+}
+
+// loungeHouse has one light in the kitchen and bedroom, and a floor lamp ("f") and plug ("p") in the lounge.
+func loungeHouse() ([]client.Room, []client.Device, []client.Light) {
+	var rooms []client.Room
+	var devices []client.Device
+	var lights []client.Light
+	for room, ids := range map[string][]string{"Kitchen": {"k"}, "Bedroom": {"b"}, "lounge": {"f", "p"}} {
+		r := client.Room{ID: room, Metadata: client.Metadata{Name: room}}
+		for _, id := range ids {
+			r.Children = append(r.Children, client.ResourceIdentifier{RID: "d" + id, RType: "device"})
+			devices = append(devices, client.Device{ID: "d" + id,
+				Services: []client.ResourceIdentifier{{RID: id, RType: "light"}}})
+			lights = append(lights, client.Light{ID: id})
+		}
+		rooms = append(rooms, r)
+	}
+	return rooms, devices, lights
+}
+
+func TestLoungeListManagesOnlyTheListedLights(t *testing.T) {
+	c := DefaultConfig()
+	c.Rooms = append(c.Rooms, RoomConfig{Name: "Lounge", Lights: []string{"f"}})
+	rooms, devices, lights := loungeHouse()
+	got, err := RoomLights(c, rooms, devices, lights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := map[string]string{}
+	for _, l := range got {
+		selected[l.Light.ID] = l.Room.Name
+	}
+	if len(got) != 3 || selected["f"] != "Lounge" || selected["p"] != "" {
+		t.Fatalf("selected %v, want the kitchen, the bedroom and only the lounge floor lamp", selected)
+	}
+	if _, err := NewEngine(c, &fakeBridge{}, got, time.Now); err != nil {
+		t.Fatalf("engine refused the lounge: %v", err)
+	}
+}
+
+func TestListedLightMissingFromItsRoomIsRefused(t *testing.T) {
+	c := DefaultConfig()
+	c.Rooms = append(c.Rooms, RoomConfig{Name: "Lounge", Lights: []string{"f", "k"}}) // "k" is in the kitchen
+	rooms, devices, lights := loungeHouse()
+	if _, err := SelectLights(c, rooms, devices, lights); err == nil {
+		t.Fatal("a listed light outside the lounge was accepted")
 	}
 }
