@@ -32,6 +32,7 @@ type lightState struct {
 	sentAt      time.Time
 	pending     bool
 	switchedOff bool
+	switchedOn  bool // switched on from outside; its next update fades in quickly
 }
 
 type Engine struct {
@@ -224,6 +225,7 @@ func (e *Engine) hold(s *lightState) {
 		e.stateDirty = true
 	}
 	s.switchedOff = false
+	s.switchedOn = false
 }
 
 // Guard runs inside the client's write lock, immediately before sending a command.
@@ -354,9 +356,32 @@ func (e *Engine) Observe(data client.EventData) {
 		data.Effects = nil
 	}
 	if changed && !e.expected(s, data) {
-		e.hold(s)
+		// A light switched on with nothing else changed shows what it had when it went off, such as
+		// last night's deep red. It gets the schedule straight away, unless the schedule would
+		// switch it off again (a white bulb during a colour-only phase).
+		switchedOn := data.On != nil && next.On.On && data.Dimming == nil && data.Color == nil &&
+			data.ColorTemperature == nil && data.Effects == nil
+		proposed := Adapt(TargetAt(e.config, e.now(), s.managed.Room), next, false)
+		if switchedOn && (proposed.On == nil || proposed.On.On) {
+			e.release(s)
+		} else {
+			e.hold(s)
+		}
 	}
 	s.managed.Light = next
+}
+
+// release ends any hold and drops what was last sent, so the next tick sends the current target.
+func (e *Engine) release(s *lightState) {
+	s.holdUntil = time.Time{}
+	s.revision++
+	s.last = client.LightUpdate{}
+	s.pending = false
+	if s.switchedOff {
+		e.stateDirty = true
+	}
+	s.switchedOff = false
+	s.switchedOn = true
 }
 
 func distance(a, b client.XY) float64 { return math.Hypot(a.X-b.X, a.Y-b.Y) }
@@ -483,11 +508,16 @@ func (e *Engine) Tick(ctx context.Context) error {
 	}
 	selected.previous = selected.managed.Light
 	selected.last, selected.sentAt, selected.pending = update, e.now(), true
+	fade := 10000
+	if selected.switchedOn {
+		fade = 1000 // someone is waiting for the light they just switched on
+	}
+	selected.switchedOn = false
 	p := permit{id: id, revision: selected.revision}
 	e.lastWrite = e.now()
 	e.mu.Unlock()
 	if update.On == nil || update.On.On {
-		update.Dynamics = &client.Dynamics{Duration: 10000}
+		update.Dynamics = &client.Dynamics{Duration: fade}
 	}
 	// Exclusive, so a manual write that arrives meanwhile is sent after this one and wins.
 	writeCtx, cancel := context.WithTimeout(

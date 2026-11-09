@@ -165,6 +165,13 @@ operation, followed by a hold. Active entertainment and reported native effects 
 An external effect in a separate process is observed through its light changes; its private job
 lifetime is unavailable to this controller.
 
+Switching a light on from outside, with nothing else changed, does not create a hold. The light
+comes back showing what it had when it went off, such as the night phase's deep red. The controller
+sends it the current target within a few seconds, with a one-second fade, and ends any hold left by
+the switch-off. A switch-on that also changes brightness or colour, such as a scene or a dimmer
+switch, still creates a hold. Switching on a white bulb during a colour-only phase also creates one,
+because the schedule would otherwise switch it straight off again.
+
 Hue events do not reliably identify who issued a command. The controller compares changed fields
 with its pending target and expected fade progress. An external command indistinguishable from that
 progress cannot be attributed perfectly. Explicit pause is appropriate for long external sessions.
