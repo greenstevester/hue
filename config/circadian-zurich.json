@@ -45,7 +45,7 @@
     },
     "night": {
       "color": "#FF1600",
-      "brightness": 3
+      "brightness": 10
     }
   }
 }

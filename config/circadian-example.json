@@ -22,6 +22,6 @@
     "late_afternoon": {"kelvin": 2700, "brightness": 50},
     "sunset": {"kelvin": 2200, "brightness": 35},
     "evening": {"color": "#FF7800", "brightness": 15},
-    "night": {"color": "#FF1600", "brightness": 3}
+    "night": {"color": "#FF1600", "brightness": 10}
   }
 }

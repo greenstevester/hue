@@ -23,13 +23,13 @@ func TestTargetUsesSixPhasesAndSmoothstep(t *testing.T) {
 		at, phase  string
 		brightness float64
 	}{
-		{"2026-01-10T06:00:00+01:00", "night", 3},
+		{"2026-01-10T06:00:00+01:00", "night", 10},
 		{"2026-01-10T07:30:00+01:00", "morning", 90},
 		{"2026-01-10T08:30:00+01:00", "daytime", 85},
 		{"2026-01-10T16:30:00+01:00", "late_afternoon", 50},
 		{"2026-01-10T18:30:00+01:00", "sunset", 35},
 		{"2026-01-10T19:30:00+01:00", "evening", 15},
-		{"2026-01-10T23:00:00+01:00", "night", 3},
+		{"2026-01-10T23:00:00+01:00", "night", 10},
 		{"2026-01-10T08:15:00+01:00", "daytime", 87.5},
 		// A quarter of the way through, the smooth curve has moved 15.6% of the way, not 25%.
 		{"2026-01-10T08:07:30+01:00", "daytime", 89.21875},

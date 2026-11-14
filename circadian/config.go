@@ -53,7 +53,7 @@ func DefaultConfig() Config {
 		Profiles: map[string]Profile{
 			"morning": {Kelvin: 4000, Brightness: 90}, "daytime": {Kelvin: 3500, Brightness: 85},
 			"late_afternoon": {Kelvin: 2700, Brightness: 50}, "sunset": {Kelvin: 2200, Brightness: 35},
-			"evening": {Color: "#FF7800", Brightness: 15}, "night": {Color: "#FF1600", Brightness: 3},
+			"evening": {Color: "#FF7800", Brightness: 15}, "night": {Color: "#FF1600", Brightness: 10},
 		},
 	}
 }
