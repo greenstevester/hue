@@ -5,6 +5,6 @@ tracked, because it records the household's running controller,
 allowed lights, verification history, and build and deployment steps. Read [CIRCADIAN.md](CIRCADIAN.md)
 for configuration and operating behaviour.
 
-Control only Kitchen and Bedroom. Keep bed-platform out of entertainment areas. The Mac currently
-runs the controller; do not start another controller on the Raspberry Pi while the Mac owns it.
+Control only Kitchen and Bedroom. Keep bed-platform out of entertainment areas. The Raspberry Pi
+currently runs the controller; do not start another controller on the Mac while the Pi owns it.
 Preserve private credentials and existing staged changes. Ask before committing or pushing.
