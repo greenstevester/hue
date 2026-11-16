@@ -2,17 +2,26 @@
 # Follow Fundpuppet's ARMv7 build and SSH-copy pattern. Do not start a second controller.
 set -euo pipefail
 
-PI_HOST="${PI_HOST:-pi@192.168.1.50}"
-PI_KEY="${PI_KEY:-$HOME/.ssh/id_ed25519}"
-PI_DIR="${PI_DIR:-/home/pi/hue}"
-GO="${GO:-/opt/homebrew/bin/go}"
-[ -x "$GO" ] || GO=go
-CONFIG="${1:-config/circadian-zurich.json}"
-
 if [ ! -f .env ]; then
   printf 'Create .env from .env.example and set the Bridge credential locally.\n' >&2
   exit 1
 fi
+# Pi details come from the environment or the ignored .env, so none are kept in the repository.
+env_value() { sed -n "s/^$1=//p" .env | tail -n 1; }
+PI_HOST="${PI_HOST:-$(env_value PI_HOST)}"
+PI_KEY="${PI_KEY:-$(env_value PI_KEY)}"
+PI_KEY="${PI_KEY/#\~/$HOME}"
+# A relative folder is inside the Pi user's home directory.
+PI_DIR="${PI_DIR:-$(env_value PI_DIR)}"
+PI_DIR="${PI_DIR:-hue}"
+if [ -z "$PI_HOST" ]; then
+  printf 'Set PI_HOST (for example pi@192.168.1.50) in .env or the environment.\n' >&2
+  exit 1
+fi
+GO="${GO:-/opt/homebrew/bin/go}"
+[ -x "$GO" ] || GO=go
+CONFIG="${1:-config/circadian-zurich.json}"
+
 if [ ! -f "$CONFIG" ]; then
   printf 'Configuration not found: %s\n' "$CONFIG" >&2
   exit 1
@@ -25,8 +34,10 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 "$GO" build -trimpath -o "$STAGING/h
 # New Pi uploads start disabled. The web switch persists the user's later choice.
 sed 's/"enabled":[[:space:]]*true/"enabled": false/' "$CONFIG" > "$STAGING/config.json"
 
-SSH=(ssh -i "$PI_KEY" -o BatchMode=yes -o ConnectTimeout=10 "$PI_HOST")
-SCP=(scp -i "$PI_KEY" -o BatchMode=yes -o ConnectTimeout=10)
+OPTS=(-o BatchMode=yes -o ConnectTimeout=10)
+[ -n "$PI_KEY" ] && OPTS=(-i "$PI_KEY" "${OPTS[@]}")
+SSH=(ssh "${OPTS[@]}" "$PI_HOST")
+SCP=(scp "${OPTS[@]}")
 # A configuration already on the Pi holds choices saved from the web page, so later runs keep it
 # and the Pi's .env, and replace only the program and run-web.sh.
 MODE=$("${SSH[@]}" "if [ -e '$PI_DIR/config.json' ]; then echo update; else echo new; fi")

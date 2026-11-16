@@ -1,6 +1,7 @@
 # Session startup
 
-Read [HANDOFF.md](HANDOFF.md) before working on this repository. It records the running controller,
+Read HANDOFF.md, if present, before working on this repository. It is kept locally and not
+tracked, because it records the household's running controller,
 allowed lights, verification history, and build and deployment steps. Read [CIRCADIAN.md](CIRCADIAN.md)
 for configuration and operating behaviour.
 

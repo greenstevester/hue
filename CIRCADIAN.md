@@ -72,7 +72,7 @@ process's engine. It starts paused. A separate command process cannot resume thi
 The installed macOS login service is local.hue.circadian. It runs the Zurich configuration from
 ~/Library/Application Support/Hue Circadian/config.json and writes controller.log in that directory.
 It resumes automatically on login and retries after a process failure. The live controller runs
-only as this login service, on the Mac at 192.168.1.40. Its page is http://192.168.1.40:8088/. Nothing
+only as this login service, on the Mac. Its page is http://<the Mac's address>:8088/. Nothing
 from this project is deployed to the Raspberry Pi. The router assigns the Mac's address, so reserve
 it there to keep the link stable. Pause or resume it with:
 
@@ -125,12 +125,12 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -o /tmp/hue-pi .
 
 For an upload, create an ignored .env from .env.example with your local Bridge credential, then run
 `./deploy-pi.sh`. It copies the binary, private environment file, disabled configuration, and
-run-web.sh to pi@192.168.1.50:/home/pi/hue. When a configuration is already there, later runs
+run-web.sh to the Pi named by PI_HOST, into PI_DIR (default ~/hue). When a configuration is already there, later runs
 replace only the binary and run-web.sh and keep the Pi's configuration, saved state and .env. The
-new binary must accept that configuration before it replaces the old one. PI_HOST, PI_KEY and
-PI_DIR may override the host, key path and folder. Nothing is started or restarted automatically.
+new binary must accept that configuration before it replaces the old one. Set PI_HOST, and optionally
+PI_KEY and PI_DIR, in .env or the environment. Nothing is started or restarted automatically.
 
-On the Pi, run `./run-web.sh` to view http://192.168.1.50:8088 with automation disabled. Choose one
+On the Pi, run `./run-web.sh` to view http://<the Pi's address>:8088 with automation disabled. Choose one
 controller host before enabling scheduling. For a 64-bit Pi operating system, build with
 GOARCH=arm64 and omit GOARM.
 

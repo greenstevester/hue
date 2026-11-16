@@ -1,5 +1,7 @@
 # Sensitive files
 HAND-OVER.md
+# Local notes about this household's controller, addresses and lights
+HANDOFF.md
 
 # Binaries
 hue-mcp
@@ -36,6 +38,7 @@ claude_desktop_config.json
 
 # Built CLI binary at the repo root
 /hue
+/client/hue
 
 # Local copies of circadian settings that the web page rewrites
 *.local.json
