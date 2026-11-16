@@ -125,13 +125,14 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -o /tmp/hue-pi .
 
 For an upload, create an ignored .env from .env.example with your local Bridge credential, then run
 `./deploy-pi.sh`. It copies the binary, private environment file, disabled configuration, and
-run-web.sh to the Pi named by PI_HOST, into PI_DIR (default ~/hue). When a configuration is already there, later runs
-replace only the binary and run-web.sh and keep the Pi's configuration, saved state and .env. The
-new binary must accept that configuration before it replaces the old one. Set PI_HOST, and optionally
-PI_KEY and PI_DIR, in .env or the environment. Nothing is started or restarted automatically.
+run-web.sh to the Pi named by PI_HOST, into PI_DIR (default ~/hue). When a configuration is
+already there, later runs replace only the binary and run-web.sh and keep the Pi's configuration,
+saved state and .env. The new binary must accept that configuration before it replaces the old one.
+Set PI_HOST, and optionally PI_KEY and PI_DIR, in .env or the environment. Nothing is started or
+restarted automatically.
 
-On the Pi, run `./run-web.sh` to view http://<the Pi's address>:8088 with automation disabled. Choose one
-controller host before enabling scheduling. For a 64-bit Pi operating system, build with
+On the Pi, run `./run-web.sh` to view http://<the Pi's address>:8088 with automation disabled.
+Choose one controller host before enabling scheduling. For a 64-bit Pi operating system, build with
 GOARCH=arm64 and omit GOARM.
 
 ## Behaviour
