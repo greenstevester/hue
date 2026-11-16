@@ -7,11 +7,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/kungfusheep/hue/client"
 )
+
+// eventLoopSkew moves the fixture's clock ahead, so a test can bring the next room check forward.
+var eventLoopSkew atomic.Int64
+
+// eventLoopWrites counts the light updates the fixture's Bridge receives.
+var eventLoopWrites atomic.Int64
+
+// eventLoopDuringCheck, when set, is sent down the event stream while the fixture's Bridge answers
+// the next room check, as if the rooms changed just after the Bridge replied.
+var eventLoopDuringCheck atomic.Pointer[string]
 
 // eventLoopFixture runs the real event loop against a fake Bridge whose stream sends what the test
 // pushes. Sending on the returned ticks channel stands in for the loop's one-second clock.
@@ -45,10 +56,18 @@ func eventLoopFixture(t *testing.T) (chan<- string, chan<- time.Time, *Engine) {
 				}
 			}
 		}
+		if r.Method == http.MethodPut {
+			eventLoopWrites.Add(1)
+			_, _ = fmt.Fprint(w, `{"errors":[],"data":[]}`)
+			return
+		}
 		var data interface{}
 		switch r.URL.Path {
 		case "/clip/v2/resource/room":
 			data = rooms
+			if event := eventLoopDuringCheck.Swap(nil); event != nil {
+				pushed <- *event
+			}
 		case "/clip/v2/resource/device":
 			data = []client.Device{}
 		case "/clip/v2/resource/light":
@@ -70,7 +89,13 @@ func eventLoopFixture(t *testing.T) (chan<- string, chan<- time.Time, *Engine) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err := NewEngine(config, c, managed, time.Now)
+	t.Cleanup(func() {
+		eventLoopSkew.Store(0)
+		eventLoopWrites.Store(0)
+		eventLoopDuringCheck.Store(nil)
+	})
+	clock := func() time.Time { return time.Now().Add(time.Duration(eventLoopSkew.Load())) }
+	e, err := NewEngine(config, c, managed, clock)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +129,7 @@ func waitFor(t *testing.T, condition func() bool) {
 	}
 }
 
-func TestOnlyLightRoomAndDeviceChangesStopAutomationUntilRestart(t *testing.T) {
+func TestOnlyLightRoomAndDeviceChangesStopAutomationUntilTheRoomsAreChecked(t *testing.T) {
 	tests := []struct {
 		name       string
 		event      string
@@ -139,6 +164,58 @@ func TestOnlyLightRoomAndDeviceChangesStopAutomationUntilRestart(t *testing.T) {
 				t.Fatalf("unrelated Bridge change stopped automation: %v", err)
 			}
 		})
+	}
+}
+
+func TestBridgeRestartEventsStopAutomationOnlyUntilTheNextRoomCheck(t *testing.T) {
+	pushed, ticks, e := eventLoopFixture(t)
+	// What a restarting Bridge sends as it comes back, while its rooms stay as they were.
+	pushed <- `[{"type":"update","data":[{"id":"kitchen","type":"room"},` +
+		`{"id":"d1","type":"device"}]},` +
+		`{"type":"update","data":[{"id":"b","type":"light","dimming":{"brightness":20}}]}]`
+	waitFor(t, func() bool {
+		for _, light := range e.Status().Lights {
+			if light.ID == "b" && light.Brightness == 20 {
+				return true
+			}
+		}
+		return false
+	})
+	if err := e.SetEnabled(true); err == nil {
+		t.Fatal("automation could be enabled before the rooms were checked")
+	}
+	eventLoopSkew.Store(int64(31 * time.Second)) // the next tick is due a room check
+	ticks <- time.Now()
+	waitFor(t, func() bool { return e.SetEnabled(true) == nil })
+}
+
+func TestRoomChangeDuringTheRoomCheckIsHandledBeforeAnythingIsWritten(t *testing.T) {
+	pushed, ticks, e := eventLoopFixture(t)
+	if err := e.SetEnabled(true); err != nil {
+		t.Fatal(err)
+	}
+	pushed <- `[{"type":"update","data":[{"id":"kitchen","type":"room"}]}]`
+	waitFor(t, func() bool { return e.Status().Paused })
+	// The Bridge answers the check with the old rooms, then reports a change straight after.
+	// The light item that follows shows when the loop has handled the change.
+	during := `[{"type":"update","data":[{"id":"kitchen","type":"room"}]},` +
+		`{"type":"update","data":[{"id":"b","type":"light","dimming":{"brightness":20}}]}]`
+	eventLoopDuringCheck.Store(&during)
+	eventLoopSkew.Store(int64(31 * time.Second)) // the next tick is due a room check
+	ticks <- time.Now()
+	waitFor(t, func() bool {
+		for _, light := range e.Status().Lights {
+			if light.ID == "b" && light.Brightness == 20 {
+				return true
+			}
+		}
+		return false
+	})
+	if writes := eventLoopWrites.Load(); writes != 0 {
+		t.Fatalf("%d light updates went out before the change that arrived during the check", writes)
+	}
+	if !e.Status().Paused {
+		t.Fatal("the change that arrived during the check did not stop automation")
 	}
 }
 

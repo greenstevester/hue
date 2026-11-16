@@ -230,6 +230,47 @@ func TestRoomMembershipChangeCannotBeResumedWithoutRediscovery(t *testing.T) {
 	}
 }
 
+func TestRoomCheckThatFindsTheSameLightsResumesAutomation(t *testing.T) {
+	// A Bridge restarting sends room and device events although nothing in the rooms changed.
+	// On 16 November that stopped the controller for hours, until someone restarted it.
+	e, b, _ := engineFixture(t)
+	unchanged := []ManagedLight{e.lights["k"].managed}
+	e.invalidateInventory()
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 0 {
+		t.Fatal("wrote lights before the rooms were checked")
+	}
+	if err := e.reconcileInventory(unchanged); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.writes) != 1 {
+		t.Fatal("automation did not resume after the rooms were found unchanged")
+	}
+}
+
+func TestRoomCheckLeavesAutomationOffWhenItWasSwitchedOff(t *testing.T) {
+	e, b, _ := engineFixture(t)
+	unchanged := []ManagedLight{e.lights["k"].managed}
+	if err := e.SetEnabled(false); err != nil {
+		t.Fatal(err)
+	}
+	e.invalidateInventory()
+	if err := e.reconcileInventory(unchanged); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if e.Status().Enabled || len(b.writes) != 0 {
+		t.Fatal("the room check switched automation back on")
+	}
+}
+
 func TestOwnColourEventWithNullTemperatureDoesNotCreateHold(t *testing.T) {
 	e, b, now := engineFixture(t)
 	e.lights["k"].managed.Light.Color = &client.Color{XY: client.XY{X: .4, Y: .4}}

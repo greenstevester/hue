@@ -188,8 +188,11 @@ progress cannot be attributed perfectly. Explicit pause is appropriate for long 
 
 Observation errors stop automation writes. Reconnection requires fresh lights, rooms, devices, and
 entertainment state. State is refreshed periodically as a backstop. Missed daily phases are not
-replayed. Adding or removing a light, or changing a room or device, pauses the controller until
-restart and rediscovery. Adding or deleting scenes, zones or automations does not pause it.
+replayed. Adding or removing a light, or changing a room or device, stops writes until the next
+room check. A Bridge restart sends these events too. If the check finds the same lights in the same
+rooms, the controller carries on as it was, including staying off if it was switched off. If the
+lights really moved, it stays stopped until restart and rediscovery. Adding or deleting scenes,
+zones or automations does not pause it.
 
 ## Light appearance and measurement
 

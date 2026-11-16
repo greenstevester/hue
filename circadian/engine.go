@@ -79,7 +79,7 @@ func (e *Engine) SetEnabled(enabled bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if enabled && e.invalidInventory {
-		return fmt.Errorf("room membership changed; restart to rediscover lights")
+		return fmt.Errorf("rooms or devices changed; waiting for a room check")
 	}
 	e.config.Enabled = enabled
 	e.paused = !enabled
@@ -275,7 +275,8 @@ func (e *Engine) Guard(ctx context.Context, path string, data interface{}) error
 func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	status := Status{Healthy: e.healthy, Paused: e.paused, Enabled: e.config.Enabled && !e.paused}
+	stopped := e.paused || e.invalidInventory
+	status := Status{Healthy: e.healthy, Paused: stopped, Enabled: e.config.Enabled && !stopped}
 	for id, s := range e.lights {
 		light := LightStatus{ID: id, Name: s.managed.Light.Metadata.Name,
 			Room: s.managed.Room.Name, Enabled: e.lightEnabled(id),
@@ -581,11 +582,12 @@ func Run(ctx context.Context, c *client.Client, e *Engine, logf func(string, ...
 	return run(ctx, c, e, logf, ticker.C)
 }
 
+// invalidateInventory stops writes until a room check finds the same lights in the same rooms.
+// It leaves paused alone, so the check brings back whatever the user had chosen before.
 func (e *Engine) invalidateInventory() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.invalidInventory = true
-	e.paused = true
 	for _, s := range e.lights {
 		s.revision++
 	}
@@ -605,6 +607,9 @@ func (e *Engine) reconcileInventory(managed []ManagedLight) error {
 		e.invalidateInventory()
 		return fmt.Errorf("selected room membership changed; restart to rediscover")
 	}
+	e.mu.Lock()
+	e.invalidInventory = false
+	e.mu.Unlock()
 	for _, l := range managed {
 		light := l.Light
 		e.Observe(client.EventData{ID: light.ID, Type: "light", On: &light.On, Dimming: &light.Dimming,
@@ -669,6 +674,9 @@ func run(
 	e.mu.Unlock()
 	c.SetWriteGuard(e.Guard)
 	defer c.SetWriteGuard(nil)
+	// A room check that lifts a stop sets this, and the next tick writes nothing. Any change that
+	// reached the event stream during the check is then handled before a light is updated.
+	var lifted bool
 	refresh := func() error {
 		e.SetHealthy(false)
 		e.mu.Lock()
@@ -695,6 +703,7 @@ func run(
 		}
 		e.mu.Lock()
 		configuration := e.config
+		wasStopped := e.invalidInventory
 		e.mu.Unlock()
 		managed, err := RoomLights(configuration, rooms, devices, lights)
 		if err != nil {
@@ -703,6 +712,10 @@ func run(
 		}
 		if err = e.reconcileInventory(managed); err != nil {
 			return err
+		}
+		if wasStopped {
+			logf("circadian room check: same lights in the same rooms; carrying on")
+			lifted = true
 		}
 		entertainment, err := c.GetEntertainmentConfigurations(ctx)
 		if err != nil {
@@ -761,11 +774,12 @@ func run(
 				// Scenes, zones and automations come and go without changing which lights are managed.
 				if (event.Type == "add" || event.Type == "delete") && d.Type == "light" {
 					e.invalidateInventory()
-					logf("circadian paused: a light was added or removed; restart to rediscover rooms")
+					logf("circadian paused: light %s %s; waiting for a room check", d.ID, event.Type)
 				}
 				if d.Type == "room" || d.Type == "device" {
 					e.invalidateInventory()
-					logf("circadian paused: room membership or device changed; rediscover before resuming")
+					logf("circadian paused: %s %s %s; waiting for a room check",
+						d.Type, d.ID, event.Type)
 				}
 				if d.Type == "entertainment_configuration" {
 					e.SetHealthy(false)
@@ -782,7 +796,9 @@ func run(
 				}
 				refreshed = e.now()
 			}
-			if err := e.Tick(ctx); err != nil {
+			if lifted {
+				lifted = false
+			} else if err := e.Tick(ctx); err != nil {
 				logf("circadian update: %v", err)
 			}
 			save()
